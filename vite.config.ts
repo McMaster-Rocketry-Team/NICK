@@ -24,7 +24,7 @@ export default defineConfig({
       manifest: {
         name: 'Caduceus',
         short_name: 'Caduceus',
-        description: 'Rocket telemetry dashboard',
+        description: 'MacRocktry Ground Station Software',
         theme_color: '#fcfcfc',
         background_color: '#fcfcfc',
         display: 'standalone',
