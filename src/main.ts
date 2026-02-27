@@ -1,5 +1,6 @@
 import openmct from 'openmct'
 import { VlBatteryPlugin } from './telemetry-plugin'
+import { DataSourceSwitcherPlugin } from './data-source-switcher'
 
 openmct.install(openmct.plugins.LocalStorage())
 openmct.install(openmct.plugins.MyItems())
@@ -27,6 +28,7 @@ openmct.install(
 )
 
 openmct.install(VlBatteryPlugin)
+openmct.install(DataSourceSwitcherPlugin)
 
 openmct.time.setTimeSystem('utc', {
   start: Date.now() - 15 * 60 * 1000,

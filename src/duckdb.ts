@@ -1,11 +1,6 @@
 import * as duckdb from '@duckdb/duckdb-wasm'
 import type { Table } from 'apache-arrow'
-
-export interface TelemetryDatum {
-  timestamp: number | null
-  receivedTimestamp: number
-  value: number
-}
+import type { TelemetryBackend, TelemetryDatum, TelemetrySeries, QueryOptions } from './backend'
 
 let connInstance: duckdb.AsyncDuckDBConnection | null = null
 let initPromise: Promise<duckdb.AsyncDuckDBConnection> | null = null
@@ -68,19 +63,6 @@ export async function getConnection(): Promise<duckdb.AsyncDuckDBConnection> {
   return initPromise
 }
 
-export async function insertTelemetry(
-  table: string,
-  timestamp: number | null,
-  receivedTimestamp: number,
-  value: number,
-): Promise<void> {
-  const conn = await getConnection()
-  const tsValue = timestamp === null ? 'NULL' : timestamp
-  await conn.query(
-    `INSERT INTO ${table} VALUES (${tsValue}, ${receivedTimestamp}, ${value})`,
-  )
-}
-
 function readBatches(result: Table): TelemetryDatum[] {
   const raw: TelemetryDatum[] = []
   for (const batch of result.batches) {
@@ -100,77 +82,99 @@ function readBatches(result: Table): TelemetryDatum[] {
   return raw
 }
 
-export type TelemetrySeries = 'gps' | 'received'
-
-export interface QueryOptions {
-  strategy?: 'minmax' | 'latest'
-  size?: number
+export async function getAllData(afterReceivedTimestamp?: number): Promise<TelemetryDatum[]> {
+  const conn = await getConnection()
+  const filter =
+    afterReceivedTimestamp !== undefined
+      ? `WHERE received_timestamp > ${afterReceivedTimestamp}`
+      : ''
+  const result = await conn.query(
+    `SELECT timestamp, received_timestamp, value FROM vl_battery_v ${filter} ORDER BY received_timestamp ASC`,
+  )
+  return readBatches(result)
 }
 
-export async function queryTelemetry(
-  table: string,
-  series: TelemetrySeries,
-  start: number,
-  end: number,
-  options?: QueryOptions,
-): Promise<TelemetryDatum[]> {
-  const conn = await getConnection()
-  const strategy = options?.strategy
-  const size = options?.size
+export class DuckDBBackend implements TelemetryBackend {
+  async init(): Promise<void> {
+    await getConnection()
+  }
 
-  // GPS series: only rows where timestamp IS NOT NULL, ordered by timestamp
-  // Received series: only rows where timestamp IS NULL, ordered by received_timestamp
-  const domainCol = series === 'gps' ? 'timestamp' : 'received_timestamp'
-  const seriesFilter = series === 'gps' ? 'AND timestamp IS NOT NULL' : 'AND timestamp IS NULL'
+  async insertTelemetry(
+    table: string,
+    timestamp: number | null,
+    receivedTimestamp: number,
+    value: number,
+  ): Promise<void> {
+    const conn = await getConnection()
+    const tsValue = timestamp === null ? 'NULL' : timestamp
+    await conn.query(
+      `INSERT INTO ${table} VALUES (${tsValue}, ${receivedTimestamp}, ${value})`,
+    )
+  }
 
-  if (strategy === 'latest' && size) {
+  async queryTelemetry(
+    table: string,
+    series: TelemetrySeries,
+    start: number,
+    end: number,
+    options?: QueryOptions,
+  ): Promise<TelemetryDatum[]> {
+    const conn = await getConnection()
+    const strategy = options?.strategy
+    const size = options?.size
+
+    const domainCol = series === 'gps' ? 'timestamp' : 'received_timestamp'
+    const seriesFilter =
+      series === 'gps' ? 'AND timestamp IS NOT NULL' : 'AND timestamp IS NULL'
+
+    if (strategy === 'latest' && size) {
+      const result = await conn.query(
+        `SELECT timestamp, received_timestamp, value FROM ${table}
+         WHERE ${domainCol} >= ${start} AND ${domainCol} <= ${end} ${seriesFilter}
+         ORDER BY ${domainCol} DESC
+         LIMIT ${size}`,
+      )
+      const raw = readBatches(result)
+      raw.reverse()
+      return raw
+    }
+
+    if (strategy === 'minmax' && size && size > 0) {
+      const buckets = Math.max(1, Math.floor(size / 2))
+      const result = await conn.query(
+        `WITH bucketed AS (
+          SELECT timestamp, received_timestamp, value,
+            NTILE(${buckets}) OVER (ORDER BY ${domainCol}) AS bucket
+          FROM ${table}
+          WHERE ${domainCol} >= ${start} AND ${domainCol} <= ${end} ${seriesFilter}
+        ),
+        extremes AS (
+          SELECT
+            arg_min(timestamp, value) AS min_ts,
+            arg_min(received_timestamp, value) AS min_rts,
+            MIN(value) AS min_val,
+            arg_max(timestamp, value) AS max_ts,
+            arg_max(received_timestamp, value) AS max_rts,
+            MAX(value) AS max_val
+          FROM bucketed
+          GROUP BY bucket
+        )
+        SELECT timestamp, received_timestamp, value FROM (
+          SELECT min_ts AS timestamp, min_rts AS received_timestamp, min_val AS value FROM extremes
+          UNION ALL
+          SELECT max_ts AS timestamp, max_rts AS received_timestamp, max_val AS value FROM extremes
+          WHERE max_ts != min_ts OR max_rts != min_rts
+        )
+        ORDER BY ${domainCol} ASC`,
+      )
+      return readBatches(result)
+    }
+
     const result = await conn.query(
       `SELECT timestamp, received_timestamp, value FROM ${table}
        WHERE ${domainCol} >= ${start} AND ${domainCol} <= ${end} ${seriesFilter}
-       ORDER BY ${domainCol} DESC
-       LIMIT ${size}`,
-    )
-    const raw = readBatches(result)
-    raw.reverse()
-    return raw
-  }
-
-  if (strategy === 'minmax' && size && size > 0) {
-    const buckets = Math.max(1, Math.floor(size / 2))
-    const result = await conn.query(
-      `WITH bucketed AS (
-        SELECT timestamp, received_timestamp, value,
-          NTILE(${buckets}) OVER (ORDER BY ${domainCol}) AS bucket
-        FROM ${table}
-        WHERE ${domainCol} >= ${start} AND ${domainCol} <= ${end} ${seriesFilter}
-      ),
-      extremes AS (
-        SELECT
-          arg_min(timestamp, value) AS min_ts,
-          arg_min(received_timestamp, value) AS min_rts,
-          MIN(value) AS min_val,
-          arg_max(timestamp, value) AS max_ts,
-          arg_max(received_timestamp, value) AS max_rts,
-          MAX(value) AS max_val
-        FROM bucketed
-        GROUP BY bucket
-      )
-      SELECT timestamp, received_timestamp, value FROM (
-        SELECT min_ts AS timestamp, min_rts AS received_timestamp, min_val AS value FROM extremes
-        UNION ALL
-        SELECT max_ts AS timestamp, max_rts AS received_timestamp, max_val AS value FROM extremes
-        WHERE max_ts != min_ts OR max_rts != min_rts
-      )
-      ORDER BY ${domainCol} ASC`,
+       ORDER BY ${domainCol} ASC`,
     )
     return readBatches(result)
   }
-
-  // No strategy / no size: return all points
-  const result = await conn.query(
-    `SELECT timestamp, received_timestamp, value FROM ${table}
-     WHERE ${domainCol} >= ${start} AND ${domainCol} <= ${end} ${seriesFilter}
-     ORDER BY ${domainCol} ASC`,
-  )
-  return readBatches(result)
 }

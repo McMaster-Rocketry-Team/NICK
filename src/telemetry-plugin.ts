@@ -1,10 +1,6 @@
-import {
-  getConnection,
-  insertTelemetry,
-  queryTelemetry,
-  type QueryOptions,
-  type TelemetrySeries,
-} from './duckdb'
+import { getBackend, getBackendType } from './backend'
+import { getConnection, DuckDBBackend } from './duckdb'
+import type { QueryOptions, TelemetrySeries } from './backend'
 
 const NAMESPACE = 'caduceus'
 const TABLE_NAME = 'vl_battery_v'
@@ -17,9 +13,13 @@ const subscribers = new Set<Callback>()
 let generatorInterval: ReturnType<typeof setInterval> | null = null
 let hasGpsFix = true
 
+// Singleton DuckDB backend for local capture (only used when DuckDB is the active backend)
+const localDuckDB = new DuckDBBackend()
+
 function startGenerator() {
   if (generatorInterval !== null) return
 
+  // Initialize DuckDB for local data capture
   getConnection().catch(console.error)
 
   // Toggle GPS fix on/off every 2 seconds
@@ -33,7 +33,8 @@ function startGenerator() {
     const value = Math.sin((2 * Math.PI * receivedTimestamp) / 10000)
     const datum: Datum = { timestamp, receivedTimestamp, value }
 
-    insertTelemetry(TABLE_NAME, timestamp, receivedTimestamp, value).catch(console.error)
+    // Always write to DuckDB for local capture
+    localDuckDB.insertTelemetry(TABLE_NAME, timestamp, receivedTimestamp, value).catch(console.error)
 
     for (const cb of subscribers) {
       cb(datum)
@@ -73,11 +74,13 @@ function makeTelemetryObject(series: TelemetrySeries) {
 
 const OVERLAY_PLOT_KEY = 'vl_battery_overlay'
 const LAYOUT_KEY = 'layout'
+export const DATA_SOURCE_SWITCHER_KEY = 'data-source-switcher'
 
 // Stable IDs for containers and frames so OpenMCT doesn't recreate them on each load
 const CONTAINER_TOP_ID = 'c0000000-0000-0000-0000-000000000001'
 const CONTAINER_BOTTOM_ID = 'c0000000-0000-0000-0000-000000000002'
 const FRAME_PLOT_ID = 'f0000000-0000-0000-0000-000000000001'
+const FRAME_SWITCHER_ID = 'f0000000-0000-0000-0000-000000000002'
 
 function makeOverlayPlot() {
   return {
@@ -94,6 +97,10 @@ function makeOverlayPlot() {
         { identifier: { namespace: NAMESPACE, key: 'vl_battery_v_received' } },
         { identifier: { namespace: NAMESPACE, key: 'vl_battery_v_gps' } },
       ],
+      yAxis: {
+        autoscale: false,
+        range: { min: -1.5, max: 1.5 },
+      },
       objectStyles: {},
       legend: {
         position: 'top',
@@ -117,13 +124,14 @@ function makeLayout() {
     location: `${NAMESPACE}:root`,
     composition: [
       { namespace: NAMESPACE, key: OVERLAY_PLOT_KEY },
+      { namespace: NAMESPACE, key: DATA_SOURCE_SWITCHER_KEY },
     ],
     configuration: {
       rowsLayout: true,
       containers: [
         {
           id: CONTAINER_TOP_ID,
-          size: 50,
+          size: 65,
           frames: [
             {
               id: FRAME_PLOT_ID,
@@ -134,8 +142,17 @@ function makeLayout() {
         },
         {
           id: CONTAINER_BOTTOM_ID,
-          size: 50,
-          frames: [],
+          size: 35,
+          frames: [
+            {
+              id: FRAME_SWITCHER_ID,
+              domainObjectIdentifier: {
+                namespace: NAMESPACE,
+                key: DATA_SOURCE_SWITCHER_KEY,
+              },
+              noFrame: false,
+            },
+          ],
         },
       ],
       objectStyles: {},
@@ -168,6 +185,7 @@ export function VlBatteryPlugin(openmct: any) {
             { namespace: NAMESPACE, key: LAYOUT_KEY },
             { namespace: NAMESPACE, key: 'vl_battery_v_gps' },
             { namespace: NAMESPACE, key: 'vl_battery_v_received' },
+            { namespace: NAMESPACE, key: DATA_SOURCE_SWITCHER_KEY },
           ],
         })
       }
@@ -188,6 +206,15 @@ export function VlBatteryPlugin(openmct: any) {
         return Promise.resolve(makeTelemetryObject('received'))
       }
 
+      if (identifier.key === DATA_SOURCE_SWITCHER_KEY) {
+        return Promise.resolve({
+          identifier,
+          name: 'Data Source Switcher',
+          type: 'caduceus.data-source-switcher',
+          location: `${NAMESPACE}:${LAYOUT_KEY}`,
+        })
+      }
+
       return Promise.resolve(undefined)
     },
   })
@@ -205,9 +232,8 @@ export function VlBatteryPlugin(openmct: any) {
       domainObject: { identifier: { key: string } },
       options: { start: number; end: number; strategy?: string; size?: number },
     ) {
-      const series: TelemetrySeries = domainObject.identifier.key === 'vl_battery_v_gps'
-        ? 'gps'
-        : 'received'
+      const series: TelemetrySeries =
+        domainObject.identifier.key === 'vl_battery_v_gps' ? 'gps' : 'received'
       const queryOpts: QueryOptions = {}
       if (options.strategy === 'minmax' || options.strategy === 'latest') {
         queryOpts.strategy = options.strategy
@@ -215,10 +241,13 @@ export function VlBatteryPlugin(openmct: any) {
       if (options.size) {
         queryOpts.size = options.size
       }
-      return queryTelemetry(TABLE_NAME, series, options.start, options.end, queryOpts)
+      const backend = await getBackend()
+      return backend.queryTelemetry(TABLE_NAME, series, options.start, options.end, queryOpts)
     },
 
     supportsSubscribe(domainObject: { identifier: { namespace: string; key: string } }) {
+      // InfluxDB has no real-time push; disable subscriptions entirely when it is active
+      if (getBackendType() === 'influxdb') return false
       return (
         domainObject.identifier.namespace === NAMESPACE &&
         (domainObject.identifier.key === 'vl_battery_v_gps' ||
@@ -230,9 +259,8 @@ export function VlBatteryPlugin(openmct: any) {
       domainObject: { identifier: { key: string } },
       callback: Callback,
     ): () => void {
-      const series: TelemetrySeries = domainObject.identifier.key === 'vl_battery_v_gps'
-        ? 'gps'
-        : 'received'
+      const series: TelemetrySeries =
+        domainObject.identifier.key === 'vl_battery_v_gps' ? 'gps' : 'received'
 
       const filtered: Callback = (datum) => {
         if (series === 'gps' && datum.timestamp === null) return
