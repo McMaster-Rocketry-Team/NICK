@@ -1,6 +1,7 @@
 import openmct from 'openmct'
-import { VlBatteryPlugin } from './telemetry-plugin'
-import { DataSourceSwitcherPlugin } from './data-source-switcher'
+import { AvionicsLayoutPlugin } from './layout/avionics'
+import { TelemetryProviderPlugin } from './sources/telemetry-provider'
+import { DataSourceSwitcherPlugin } from './components/data-source-switcher'
 
 openmct.install(openmct.plugins.LocalStorage())
 openmct.install(openmct.plugins.MyItems())
@@ -27,7 +28,8 @@ openmct.install(
   }),
 )
 
-openmct.install(VlBatteryPlugin)
+openmct.install(AvionicsLayoutPlugin)
+openmct.install(TelemetryProviderPlugin)
 openmct.install(DataSourceSwitcherPlugin)
 
 openmct.time.setTimeSystem('utc', {

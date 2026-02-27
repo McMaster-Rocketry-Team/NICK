@@ -2,7 +2,7 @@ import {
   BACKEND_STORAGE_KEY,
   getBackendType,
   type BackendType,
-} from './backend'
+} from '../db/get-backend'
 import {
   loadInfluxConfig,
   saveInfluxConfig,
@@ -11,8 +11,8 @@ import {
   INFLUXDB_TOKEN_KEY,
   INFLUXDB_ORG_KEY,
   INFLUXDB_BUCKET_KEY,
-} from './influxdb'
-import { getAllData } from './duckdb'
+} from '../db/influxdb'
+import { getAllData } from '../db/duckdb'
 
 const LAST_UPLOAD_KEY = 'caduceus-last-upload-ts'
 const UPLOAD_BATCH_SIZE = 5000

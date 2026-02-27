@@ -1,46 +1,6 @@
-import { getBackend, getBackendType } from './backend'
-import { getConnection, DuckDBBackend } from './duckdb'
-import type { QueryOptions, TelemetrySeries } from './backend'
+import type { TelemetrySeries } from '../db/backend'
 
 const NAMESPACE = 'caduceus'
-const TABLE_NAME = 'vl_battery_v'
-const TICK_INTERVAL_MS = 10
-
-type Datum = { timestamp: number | null; receivedTimestamp: number; value: number }
-type Callback = (datum: Datum) => void
-
-const subscribers = new Set<Callback>()
-let generatorInterval: ReturnType<typeof setInterval> | null = null
-let hasGpsFix = true
-
-// Singleton DuckDB backend for local capture (only used when DuckDB is the active backend)
-const localDuckDB = new DuckDBBackend()
-
-function startGenerator() {
-  if (generatorInterval !== null) return
-
-  // Initialize DuckDB for local data capture
-  getConnection().catch(console.error)
-
-  // Toggle GPS fix on/off every 2 seconds
-  setInterval(() => {
-    hasGpsFix = !hasGpsFix
-  }, 2000)
-
-  generatorInterval = setInterval(() => {
-    const receivedTimestamp = Date.now()
-    const timestamp = hasGpsFix ? receivedTimestamp : null
-    const value = Math.sin((2 * Math.PI * receivedTimestamp) / 10000)
-    const datum: Datum = { timestamp, receivedTimestamp, value }
-
-    // Always write to DuckDB for local capture
-    localDuckDB.insertTelemetry(TABLE_NAME, timestamp, receivedTimestamp, value).catch(console.error)
-
-    for (const cb of subscribers) {
-      cb(datum)
-    }
-  }, TICK_INTERVAL_MS)
-}
 
 function makeTelemetryObject(series: TelemetrySeries) {
   const isGps = series === 'gps'
@@ -161,7 +121,7 @@ function makeLayout() {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function VlBatteryPlugin(openmct: any) {
+export function AvionicsLayoutPlugin(openmct: any) {
   openmct.types.addType('caduceus.telemetry', {
     name: 'Caduceus Telemetry Point',
     description: 'A telemetry measurement from the Caduceus system',
@@ -216,63 +176,6 @@ export function VlBatteryPlugin(openmct: any) {
       }
 
       return Promise.resolve(undefined)
-    },
-  })
-
-  openmct.telemetry.addProvider({
-    supportsRequest(domainObject: { identifier: { namespace: string; key: string } }) {
-      return (
-        domainObject.identifier.namespace === NAMESPACE &&
-        (domainObject.identifier.key === 'vl_battery_v_gps' ||
-          domainObject.identifier.key === 'vl_battery_v_received')
-      )
-    },
-
-    async request(
-      domainObject: { identifier: { key: string } },
-      options: { start: number; end: number; strategy?: string; size?: number },
-    ) {
-      const series: TelemetrySeries =
-        domainObject.identifier.key === 'vl_battery_v_gps' ? 'gps' : 'received'
-      const queryOpts: QueryOptions = {}
-      if (options.strategy === 'minmax' || options.strategy === 'latest') {
-        queryOpts.strategy = options.strategy
-      }
-      if (options.size) {
-        queryOpts.size = options.size
-      }
-      const backend = await getBackend()
-      return backend.queryTelemetry(TABLE_NAME, series, options.start, options.end, queryOpts)
-    },
-
-    supportsSubscribe(domainObject: { identifier: { namespace: string; key: string } }) {
-      // InfluxDB has no real-time push; disable subscriptions entirely when it is active
-      if (getBackendType() === 'influxdb') return false
-      return (
-        domainObject.identifier.namespace === NAMESPACE &&
-        (domainObject.identifier.key === 'vl_battery_v_gps' ||
-          domainObject.identifier.key === 'vl_battery_v_received')
-      )
-    },
-
-    subscribe(
-      domainObject: { identifier: { key: string } },
-      callback: Callback,
-    ): () => void {
-      const series: TelemetrySeries =
-        domainObject.identifier.key === 'vl_battery_v_gps' ? 'gps' : 'received'
-
-      const filtered: Callback = (datum) => {
-        if (series === 'gps' && datum.timestamp === null) return
-        if (series === 'received' && datum.timestamp !== null) return
-        callback(datum)
-      }
-
-      subscribers.add(filtered)
-      startGenerator()
-      return () => {
-        subscribers.delete(filtered)
-      }
     },
   })
 }

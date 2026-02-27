@@ -7,8 +7,8 @@ on:
     branches: ['**']
 
 jobs:
-  lint-and-format:
-    name: Lint & Format
+  ci:
+    name: CI
     runs-on: ubuntu-latest
 
     steps:
@@ -26,27 +26,11 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
-      - name: Check formatting
-        run: yarn format:check
-
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Enable Corepack
-        run: corepack enable
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: yarn
-
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
+      - name: Type check
+        run: yarn tsc --noEmit
 
       - name: Run tests
         run: yarn test
+
+      - name: Check formatting
+        run: yarn format:check
