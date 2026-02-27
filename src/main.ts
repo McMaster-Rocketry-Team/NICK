@@ -1,4 +1,13 @@
+import { registerSW } from 'virtual:pwa-register'
 import openmct from 'openmct'
+
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    // New version available — reload immediately to activate it
+    updateSW(true)
+  },
+})
 import { AvionicsLayoutPlugin } from './layout/avionics'
 import { DataProviderPlugin, registerDataSource } from './plugins/data-provider'
 import { DataSourceSwitcherPlugin } from './plugins/data-source-switcher'
