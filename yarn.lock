@@ -262,6 +262,13 @@
   resolved "https://registry.yarnpkg.com/@types/estree/-/estree-1.0.8.tgz#958b91c991b1867ced318bedea0e215ee050726e"
   integrity sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==
 
+"@types/node@^25.3.2":
+  version "25.3.2"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-25.3.2.tgz#cbc4b963e1b3503eb2bcf7c55bf48c95204918d1"
+  integrity sha512-RpV6r/ij22zRRdyBPcxDeKAzH43phWVKEjL2iksqo1Vz3CuBUrgmPpPhALKiRfU7OMCmeeO9vECBMsV0hMTG8Q==
+  dependencies:
+    undici-types "~7.18.0"
+
 esbuild@^0.27.0:
   version "0.27.3"
   resolved "https://registry.yarnpkg.com/esbuild/-/esbuild-0.27.3.tgz#5859ca8e70a3af956b26895ce4954d7e73bd27a8"
@@ -309,10 +316,10 @@ nanoid@^3.3.11:
   resolved "https://registry.yarnpkg.com/nanoid/-/nanoid-3.3.11.tgz#4f4f112cefbe303202f2199838128936266d185b"
   integrity sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w==
 
-openmct@^4.3.0-rc1:
-  version "4.3.0-rc1"
-  resolved "https://registry.yarnpkg.com/openmct/-/openmct-4.3.0-rc1.tgz#237abebcd56cb33907dcab7d123c108597548a83"
-  integrity sha512-dviURP+A9Swe0tJofIymGB9CiHNftWSl5HGRcofE1DullDx9NLpOOVKmyft36omnTGSpn8CCHTKrJBYTgMiuKA==
+openmct@^4.2.0:
+  version "4.2.0"
+  resolved "https://registry.yarnpkg.com/openmct/-/openmct-4.2.0.tgz#dad38b701b0937bd2e0e1701c84d5fb92b633f2b"
+  integrity sha512-3fprUHT5s22kBukpHC0WTWeW12UnD+JgehJN9KqjJoBbj928LV4um9FjHSRZG+P+6rAKZZD9+DFumVbDzJ4lHg==
 
 picocolors@^1.1.1:
   version "1.1.1"
@@ -384,6 +391,11 @@ typescript@~5.9.3:
   version "5.9.3"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.9.3.tgz#5b4f59e15310ab17a216f5d6cf53ee476ede670f"
   integrity sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==
+
+undici-types@~7.18.0:
+  version "7.18.2"
+  resolved "https://registry.yarnpkg.com/undici-types/-/undici-types-7.18.2.tgz#29357a89e7b7ca4aef3bf0fd3fd0cd73884229e9"
+  integrity sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==
 
 vite@^7.3.1:
   version "7.3.1"
