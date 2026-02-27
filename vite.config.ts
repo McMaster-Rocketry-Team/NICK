@@ -4,7 +4,10 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 const openmctDist = path.resolve(__dirname, 'node_modules/openmct/dist')
 
+const base = process.env.BASE_PATH ?? '/'
+
 export default defineConfig({
+  base,
   server: {
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
@@ -26,8 +29,8 @@ export default defineConfig({
         background_color: '#fcfcfc',
         display: 'standalone',
         orientation: 'landscape',
-        scope: '/',
-        start_url: '/',
+        scope: base,
+        start_url: base,
         icons: [
           {
             src: 'pwa-192x192.png',
