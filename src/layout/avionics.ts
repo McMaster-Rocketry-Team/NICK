@@ -1,6 +1,6 @@
 import type { TelemetrySeries } from '../db/backend'
 
-const NAMESPACE = 'caduceus'
+const NAMESPACE = 'avionics'
 
 function makeTelemetryObject(series: TelemetrySeries) {
   const isGps = series === 'gps'
@@ -79,7 +79,7 @@ function makeOverlayPlot() {
 function makeLayout() {
   return {
     identifier: { namespace: NAMESPACE, key: LAYOUT_KEY },
-    name: 'Caduceus Dashboard',
+    name: 'Avionics Dashboard',
     type: 'flexible-layout',
     location: `${NAMESPACE}:root`,
     composition: [
@@ -138,7 +138,7 @@ export function AvionicsLayoutPlugin(openmct: any) {
       if (identifier.key === 'root') {
         return Promise.resolve({
           identifier,
-          name: 'Caduceus',
+          name: 'Avionics',
           type: 'folder',
           location: 'ROOT',
           composition: [

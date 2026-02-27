@@ -2,7 +2,7 @@ import { getBackend, getBackendType } from '../db/get-backend'
 import type { QueryOptions, TelemetrySeries } from '../db/backend'
 import { subscribe, type Callback } from './fake-data-generator'
 
-const NAMESPACE = 'caduceus'
+const NAMESPACE = 'avionics'
 const TABLE_NAME = 'vl_battery_v'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

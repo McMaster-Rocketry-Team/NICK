@@ -16,6 +16,7 @@ The full documentation for openmct is located at @OPENMCT.md
 - **No barrel files**: import directly from concrete module files, not re-export `index.ts` files
 - **Document public APIs**: JSDoc on all public methods/constructors with `@param` / `@returns`; keep docs in sync when modifying
 - **Refactor call sites**: when changing a function signature, update all call sites instead of adding optional parameters
+- **Avoid hardcoded strings**: export and reuse constants if possible
 
 # Before Finishing
 
