@@ -31,7 +31,7 @@ openmct.install(VlBatteryPlugin)
 openmct.install(DataSourceSwitcherPlugin)
 
 openmct.time.setTimeSystem('utc', {
-  start: Date.now() - 15 * 60 * 1000,
+  start: Date.now() - 5 * 60 * 1000,
   end: Date.now(),
 })
 

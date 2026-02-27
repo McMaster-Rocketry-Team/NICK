@@ -1,6 +1,20 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { GenericContainer, type StartedTestContainer, Wait } from 'testcontainers'
+import { DuckDBInstance } from '@duckdb/node-api'
 import { InfluxDBBackend, type InfluxDBConfig } from './influxdb'
+import {
+  setupSchema,
+  insertTelemetrySQL,
+  getAllDataSQL,
+  type Row,
+} from './duckdb-store'
+
+function makeQueryFn(conn: Awaited<ReturnType<DuckDBInstance['connect']>>) {
+  return async (sql: string): Promise<Row[]> => {
+    const reader = await conn.runAndReadAll(sql)
+    return reader.getRowObjectsJS() as unknown as Row[]
+  }
+}
 
 const ORG = 'testorg'
 const BUCKET = 'testbucket'
@@ -218,6 +232,70 @@ describe('minmax strategy', () => {
   })
 })
 
+// ── minmax sparse data behaviour ──────────────────────────────────────────────
+describe('minmax sparse data', () => {
+  it('returns all original values when count < size (1 point per bucket, deduped)', async () => {
+    const base = Date.now() + 60_000
+    // 5 points but request 100 buckets — should return 5 values
+    const source = Array.from({ length: 5 }, (_, i) => ({
+      timestamp: base + i * 1000,
+      receivedTimestamp: base + i * 1000 + 5,
+      value: i * 0.2,
+    }))
+
+    await backend.writeBatch(source)
+    await waitForData('gps', base - 1000, base + 10_000, 5)
+
+    const data = await backend.queryTelemetry('vl_battery_v', 'gps', base - 1000, base + 10_000, {
+      strategy: 'minmax',
+      size: 100,
+    })
+
+    expect(data).toHaveLength(5)
+    const sorted = [...data].sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
+    for (let i = 0; i < 5; i++) {
+      expect(sorted[i].timestamp).toBe(source[i].timestamp)
+      expect(sorted[i].value).toBeCloseTo(source[i].value, 5)
+    }
+  })
+
+  it('returns exactly 1 point when only 1 data point exists in range', async () => {
+    const base = Date.now() + 70_000
+    await backend.insertTelemetry('vl_battery_v', base + 500, base + 510, 0.42)
+    await waitForData('gps', base, base + 5000, 1)
+
+    const data = await backend.queryTelemetry('vl_battery_v', 'gps', base, base + 5000, {
+      strategy: 'minmax',
+      size: 50,
+    })
+
+    expect(data).toHaveLength(1)
+    expect(data[0].value).toBeCloseTo(0.42, 5)
+  })
+
+  it('returns up to 2*size points when data is dense', async () => {
+    const base = Date.now() + 80_000
+    // 200 points with varying values, request size=10 → up to 20 results
+    const source = Array.from({ length: 200 }, (_, i) => ({
+      timestamp: base + i * 10,
+      receivedTimestamp: base + i * 10 + 5,
+      value: Math.sin((2 * Math.PI * i) / 200),
+    }))
+
+    await backend.writeBatch(source)
+    await waitForData('gps', base - 1000, base + 3000, 200)
+
+    const data = await backend.queryTelemetry('vl_battery_v', 'gps', base - 1000, base + 3000, {
+      strategy: 'minmax',
+      size: 10,
+    })
+
+    // Each of the 10 windows can emit up to 2 points (min + max)
+    expect(data.length).toBeGreaterThan(10)
+    expect(data.length).toBeLessThanOrEqual(20)
+  })
+})
+
 // ── Empty range ───────────────────────────────────────────────────────────────
 describe('empty range', () => {
   it('returns empty array when no data exists in range', async () => {
@@ -227,5 +305,66 @@ describe('empty range', () => {
 
     const results = await backend.queryTelemetry('vl_battery_v', 'gps', start, end)
     expect(results).toEqual([])
+  })
+})
+
+// ── DuckDB → InfluxDB end-to-end ──────────────────────────────────────────────
+// Simulates the full upload flow: generate sine wave data into DuckDB,
+// read it all back via getAllDataSQL, upload to InfluxDB via writeBatch,
+// then query InfluxDB and verify the values match the originals.
+describe('DuckDB → InfluxDB upload roundtrip', () => {
+  it('values read from InfluxDB match values written from DuckDB', async () => {
+    const TABLE = 'vl_battery_v'
+    const POINT_COUNT = 40
+    const base = Date.now() + 100_000
+
+    // ── Step 1: write a sine wave into an in-memory DuckDB ──
+    const duckInstance = await DuckDBInstance.create(':memory:')
+    const duckConn = await duckInstance.connect()
+    const duckQuery = makeQueryFn(duckConn)
+    await setupSchema(duckQuery)
+
+    const sourceData = Array.from({ length: POINT_COUNT }, (_, i) => ({
+      timestamp: base + i * 100,
+      receivedTimestamp: base + i * 100 + 7,
+      value: Math.sin((2 * Math.PI * i) / POINT_COUNT),
+    }))
+
+    for (const d of sourceData) {
+      await insertTelemetrySQL(duckQuery, TABLE, d.timestamp, d.receivedTimestamp, d.value)
+    }
+
+    // ── Step 2: read all data back from DuckDB ──
+    const duckData = await getAllDataSQL(duckQuery)
+    expect(duckData).toHaveLength(POINT_COUNT)
+
+    // ── Step 3: upload to InfluxDB ──
+    await backend.writeBatch(duckData)
+    await waitForData('gps', base - 1000, base + POINT_COUNT * 100 + 1000, POINT_COUNT)
+
+    // ── Step 4: query InfluxDB and compare ──
+    const influxData = await backend.queryTelemetry(
+      TABLE,
+      'gps',
+      base - 1000,
+      base + POINT_COUNT * 100 + 1000,
+    )
+
+    console.log(`DuckDB points: ${duckData.length}, InfluxDB points: ${influxData.length}`)
+
+    expect(influxData.length).toBe(POINT_COUNT)
+
+    // Sort both by timestamp for comparison
+    const sorted = [...influxData].sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
+
+    for (let i = 0; i < POINT_COUNT; i++) {
+      const src = sourceData[i]
+      const got = sorted[i]
+      expect(got.timestamp).toBe(src.timestamp)
+      expect(got.receivedTimestamp).toBe(src.receivedTimestamp)
+      expect(got.value).toBeCloseTo(src.value, 6)
+    }
+
+    duckInstance.closeSync()
   })
 })

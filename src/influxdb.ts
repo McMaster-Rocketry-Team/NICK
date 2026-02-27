@@ -229,35 +229,66 @@ from(bucket: "${bucket}")
       const windowMs = Math.max(1, Math.floor(totalMs / size))
       const windowDur = `${windowMs}ms`
 
-      // Use mean aggregation per window — produces one smooth value per pixel-width bucket.
-      // A true min/max union via Flux produces separate tables that can't be cleanly
-      // interleaved, causing spikes. Mean gives faithful visual representation at this zoom.
-      flux = `
+      // Use window() + selector min()/max() after pivot.
+      // Selectors preserve the original _time and all columns (including alt_ts),
+      // unlike aggregateWindow which snaps _time to window boundaries.
+      const makeSelQuery = (fn: string) => `
 from(bucket: "${bucket}")
   |> range(start: ${startRfc}, stop: ${endRfc})
-  |> filter(fn: (r) => r._measurement == "vl_battery_v" and r.series == "${seriesTag}" and r._field == "value")
-  |> aggregateWindow(every: ${windowDur}, fn: mean, createEmpty: false)
-  |> keep(columns: ["_time", "_value"])
-  |> rename(columns: {_value: "value"})`
+  |> filter(fn: (r) => r._measurement == "vl_battery_v" and r.series == "${seriesTag}")
+  |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
+  |> group()
+  |> window(every: ${windowDur})
+  |> ${fn}(column: "value")
+  |> group()
+  |> keep(columns: ["_time", "value", "alt_ts"])`
 
       const queryUrl = `${url}/api/v2/query?org=${encodeURIComponent(org)}`
-      const resp = await fetch(queryUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Token ${this.config.token}`,
-          'Content-Type': 'application/vnd.flux',
-          Accept: 'application/csv',
-        },
-        body: flux,
-      })
-
-      if (!resp.ok) {
-        const body = await resp.text()
-        throw new Error(`InfluxDB query failed: ${resp.status} ${body}`)
+      const headers = {
+        Authorization: `Token ${this.config.token}`,
+        'Content-Type': 'application/vnd.flux' as const,
+        Accept: 'application/csv' as const,
       }
 
-      const csv = await resp.text()
-      return this.parseAggregatedCSV(csv, series)
+      const [minResp, maxResp] = await Promise.all([
+        fetch(queryUrl, { method: 'POST', headers, body: makeSelQuery('min') }),
+        fetch(queryUrl, { method: 'POST', headers, body: makeSelQuery('max') }),
+      ])
+
+      if (!minResp.ok) {
+        const body = await minResp.text()
+        throw new Error(`InfluxDB min query failed: ${minResp.status} ${body}`)
+      }
+      if (!maxResp.ok) {
+        const body = await maxResp.text()
+        throw new Error(`InfluxDB max query failed: ${maxResp.status} ${body}`)
+      }
+
+      const [minCsv, maxCsv] = await Promise.all([minResp.text(), maxResp.text()])
+      const minPoints = parseFluxCSV(minCsv, series)
+      const maxPoints = parseFluxCSV(maxCsv, series)
+
+      // Merge: for each window, emit both min and max (dedupe if identical)
+      const domainKey = series === 'gps' ? 'timestamp' : 'receivedTimestamp'
+      const maxByTime = new Map(maxPoints.map((p) => [p[domainKey], p]))
+
+      const merged: typeof minPoints = []
+      for (const minP of minPoints) {
+        merged.push(minP)
+        const maxP = maxByTime.get(minP[domainKey])
+        if (maxP && maxP.value !== minP.value) {
+          merged.push(maxP)
+        }
+      }
+      const minTimes = new Set(minPoints.map((p) => p[domainKey]))
+      for (const maxP of maxPoints) {
+        if (!minTimes.has(maxP[domainKey])) {
+          merged.push(maxP)
+        }
+      }
+
+      merged.sort((a, b) => (a[domainKey] ?? 0) - (b[domainKey] ?? 0))
+      return merged
     } else {
       flux = baseQuery
     }
@@ -282,51 +313,4 @@ from(bucket: "${bucket}")
     return parseFluxCSV(csv, series)
   }
 
-  // Parse aggregated (no alt_ts) CSV — used for minmax/mean strategy results.
-  private parseAggregatedCSV(csv: string, series: TelemetrySeries): TelemetryDatum[] {
-    const lines = csv.split('\n')
-    const results: TelemetryDatum[] = []
-    let headers: string[] = []
-
-    for (const line of lines) {
-      const trimmed = line.trim()
-
-      if (!trimmed) {
-        headers = []
-        continue
-      }
-
-      if (trimmed.startsWith('#')) continue
-
-      const cols = splitCSVLine(trimmed)
-
-      if (cols[0] === '' && cols.includes('_time')) {
-        headers = cols
-        continue
-      }
-
-      if (headers.length === 0) continue
-
-      const row: Record<string, string> = {}
-      for (let i = 0; i < headers.length; i++) {
-        row[headers[i]] = cols[i] ?? ''
-      }
-
-      const timeStr = row['_time']
-      const valueStr = row['value'] ?? row['_value']
-      if (!timeStr || !valueStr) continue
-
-      const domainTs = new Date(timeStr).getTime()
-      const value = parseFloat(valueStr)
-      if (isNaN(domainTs) || isNaN(value)) continue
-
-      if (series === 'gps') {
-        results.push({ timestamp: domainTs, receivedTimestamp: domainTs, value })
-      } else {
-        results.push({ timestamp: null, receivedTimestamp: domainTs, value })
-      }
-    }
-
-    return results
-  }
 }

@@ -88,7 +88,7 @@ export async function queryTelemetrySQL(
   }
 
   if (strategy === 'minmax' && size && size > 0) {
-    const buckets = Math.max(1, Math.floor(size / 2))
+    const buckets = Math.max(1, size)
     const rows = await query(
       `WITH bucketed AS (
         SELECT timestamp, received_timestamp, value,

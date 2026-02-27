@@ -230,3 +230,64 @@ describe('queryTelemetrySQL (minmax strategy)', () => {
     expect(data).toEqual([])
   })
 })
+
+// ── minmax sparse data behaviour ─────────────────────────────────────────────
+describe('queryTelemetrySQL (minmax sparse data)', () => {
+  it('returns all original points when count < size (1 point per bucket, deduped)', async () => {
+    const { query } = await makeConn()
+    const base = 1_700_000_000_000
+    // 5 points but request 100 buckets — should return all 5 originals
+    const source = Array.from({ length: 5 }, (_, i) => ({
+      ts: base + i * 1000,
+      rts: base + i * 1000 + 5,
+      value: i * 0.2,
+    }))
+    for (const s of source) {
+      await insertTelemetrySQL(query, TABLE, s.ts, s.rts, s.value)
+    }
+
+    const data = await queryTelemetrySQL(query, TABLE, 'gps', base - 1000, base + 10_000, {
+      strategy: 'minmax',
+      size: 100,
+    })
+
+    expect(data).toHaveLength(5)
+    for (let i = 0; i < 5; i++) {
+      expect(data[i].timestamp).toBe(source[i].ts)
+      expect(data[i].value).toBeCloseTo(source[i].value, 6)
+    }
+  })
+
+  it('returns exactly 1 point when only 1 data point exists', async () => {
+    const { query } = await makeConn()
+    const base = 1_700_000_000_000
+    await insertTelemetrySQL(query, TABLE, base + 500, base + 510, 0.42)
+
+    const data = await queryTelemetrySQL(query, TABLE, 'gps', base, base + 5000, {
+      strategy: 'minmax',
+      size: 50,
+    })
+
+    expect(data).toHaveLength(1)
+    expect(data[0].value).toBeCloseTo(0.42, 6)
+  })
+
+  it('returns up to 2*size points when data is dense', async () => {
+    const { query } = await makeConn()
+    const base = 1_700_000_000_000
+    // 200 points with varying values, request size=10 → up to 20 results
+    for (let i = 0; i < 200; i++) {
+      const v = Math.sin((2 * Math.PI * i) / 200)
+      await insertTelemetrySQL(query, TABLE, base + i * 10, base + i * 10 + 5, v)
+    }
+
+    const data = await queryTelemetrySQL(query, TABLE, 'gps', base, base + 3000, {
+      strategy: 'minmax',
+      size: 10,
+    })
+
+    // Each of the 10 buckets can emit up to 2 points (min + max)
+    expect(data.length).toBeGreaterThan(10)
+    expect(data.length).toBeLessThanOrEqual(20)
+  })
+})
