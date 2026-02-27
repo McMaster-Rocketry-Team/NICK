@@ -81,7 +81,17 @@ function buildUI(container: HTMLElement): void {
   switchRow.style.cssText = 'display: flex; gap: 6px; align-items: center;'
 
   const duckdbBtn = makeBackendButton('DuckDB (Local)', 'duckdb', currentBackend)
-  const influxBtn = makeBackendButton('InfluxDB (Remote)', 'influxdb', currentBackend)
+  const influxBtn = makeBackendButton('InfluxDB (Remote)', 'influxdb', currentBackend, async () => {
+    const cfg = loadInfluxConfig()
+    try {
+      await testInfluxConfig(cfg.url, cfg.token, cfg.org)
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      alert(`Cannot reach InfluxDB: ${reason}\n\nPlease open the ⚙ settings and verify your InfluxDB configuration.`)
+      return false
+    }
+    return true
+  })
 
   // ── Settings gear button (inline, after InfluxDB button) ─────────────────
   const gearBtn = document.createElement('button')
@@ -202,8 +212,8 @@ function buildUI(container: HTMLElement): void {
   const config = loadInfluxConfig()
   const urlField = makeField('URL', INFLUXDB_URL_KEY, config.url, 'http://localhost:8086')
   const tokenField = makeField('API Token', INFLUXDB_TOKEN_KEY, config.token, 'your-token-here', true)
-  const orgField = makeField('Organization', INFLUXDB_ORG_KEY, config.org, 'my-org')
-  const bucketField = makeField('Bucket', INFLUXDB_BUCKET_KEY, config.bucket, 'telemetry')
+  const orgField = makeField('Organization', INFLUXDB_ORG_KEY, config.org, 'rocketry')
+  const bucketField = makeField('Bucket', INFLUXDB_BUCKET_KEY, config.bucket, 'rocketry')
 
   configPanel.appendChild(urlField.row)
   configPanel.appendChild(tokenField.row)
@@ -283,7 +293,12 @@ function buildUI(container: HTMLElement): void {
   closeBtn.addEventListener('click', closeConfig)
 }
 
-function makeBackendButton(label: string, type: BackendType, active: BackendType) {
+function makeBackendButton(
+  label: string,
+  type: BackendType,
+  active: BackendType,
+  guard?: () => Promise<boolean>,
+) {
   const btn = document.createElement('button')
   btn.textContent = label
   const isActive = type === active
@@ -298,8 +313,16 @@ function makeBackendButton(label: string, type: BackendType, active: BackendType
     font-family: inherit;
     font-weight: ${isActive ? '600' : '400'};
   `
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', async () => {
     if (getBackendType() === type) return
+    if (guard) {
+      btn.disabled = true
+      btn.style.opacity = '0.6'
+      const ok = await guard()
+      btn.disabled = false
+      btn.style.opacity = '1'
+      if (!ok) return
+    }
     localStorage.setItem(BACKEND_STORAGE_KEY, type)
     location.reload()
   })

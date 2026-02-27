@@ -16,8 +16,8 @@ export function loadInfluxConfig(): InfluxDBConfig {
   return {
     url: localStorage.getItem(INFLUXDB_URL_KEY) ?? 'http://localhost:8086',
     token: localStorage.getItem(INFLUXDB_TOKEN_KEY) ?? '',
-    org: localStorage.getItem(INFLUXDB_ORG_KEY) ?? '',
-    bucket: localStorage.getItem(INFLUXDB_BUCKET_KEY) ?? '',
+    org: localStorage.getItem(INFLUXDB_ORG_KEY) ?? 'rocketry',
+    bucket: localStorage.getItem(INFLUXDB_BUCKET_KEY) ?? 'rocketry',
   }
 }
 
