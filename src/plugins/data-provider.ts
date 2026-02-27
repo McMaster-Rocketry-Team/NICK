@@ -77,6 +77,12 @@ export function registerDataSource(source: DataSource): void {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function DataProviderPlugin(openmct: any) {
+  openmct.types.addType(`${NAMESPACE}.telemetry`, {
+    name: 'Caduceus Telemetry Point',
+    description: 'A telemetry measurement from the Caduceus system',
+    cssClass: 'icon-telemetry',
+  })
+
   openmct.objects.addProvider(NAMESPACE, {
     get(identifier: { namespace: string; key: string }) {
       if (!registeredKeys.has(identifier.key)) return Promise.resolve(undefined)

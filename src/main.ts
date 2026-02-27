@@ -51,7 +51,7 @@ if (
   window.location.hash === '#/' ||
   window.location.hash === '#/browse/'
 ) {
-  window.location.hash = '#/browse/avionics:root/avionics:layout'
+  window.location.hash = '#/browse/avionics:layout'
 }
 
 openmct.start()

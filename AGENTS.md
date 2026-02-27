@@ -4,6 +4,35 @@ Assume yarn dev is already running on localhost 5173
 
 The full documentation for openmct is located at @OPENMCT.md
 
+# Architecture
+
+## Adding a new data source
+
+1. Create `src/sources/<name>.ts` implementing `DataSource` (`allKeys()` + `subscribe()`).
+2. In `src/main.ts`, call `registerDataSource(new MySource())` (guard with `getBackendType()` if needed).
+
+## Adding a new layout
+
+1. Refer to `src/layout/avionics.ts` for an example.
+2. In `src/main.ts`, call `openmct.install(MyLayoutPlugin)` under the `// register layouts here` comment.
+
+### Measured timestamp vs. received timestamp
+
+`Datum.timestampMs` is a single timestamp. If a sensor value carries both a
+_measured_ timestamp (e.g. GPS fix time, which may be unavailable) and a
+_received_ timestamp (wall-clock time the data arrived, always present), model
+them as **two separate keys**:
+
+- when measured timestamp is avaliable, emit one key with timestampMs = measured timestamp
+- when measured timestamp is unavaliable, emit another key with timestampMs = received timestamp
+
+Then, in the layout, create an overlay plot with both keys.
+
+## Adding a new plugin
+
+1. Create `src/plugins/<name>.ts`. Export a plugin function `MyPlugin(openmct: any)`.
+2. In `src/main.ts`, call `openmct.install(MyPlugin)`.
+
 # TypeScript
 
 - **Prefer readability** over performance: dumb code over clever solutions (e.g. for loop > reduce)

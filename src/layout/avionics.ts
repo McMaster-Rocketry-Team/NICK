@@ -23,8 +23,8 @@ function makeOverlayPlot() {
     type: 'telemetry.plot.overlay',
     location: `${AVIONICS_NAMESPACE}:${LAYOUT_KEY}`,
     composition: [
-      { namespace: NAMESPACE, key: VL_BATTERY_RECEIVED },
       { namespace: NAMESPACE, key: VL_BATTERY_GPS },
+      { namespace: NAMESPACE, key: VL_BATTERY_RECEIVED },
     ],
     configuration: {
       series: [
@@ -55,7 +55,7 @@ function makeLayout() {
     identifier: { namespace: AVIONICS_NAMESPACE, key: LAYOUT_KEY },
     name: 'Avionics Dashboard',
     type: 'flexible-layout',
-    location: `${AVIONICS_NAMESPACE}:root`,
+    location: 'ROOT',
     composition: [
       { namespace: AVIONICS_NAMESPACE, key: OVERLAY_PLOT_KEY },
       { namespace: AVIONICS_NAMESPACE, key: DATA_SOURCE_SWITCHER_KEY },
@@ -99,34 +99,13 @@ function makeLayout() {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function AvionicsLayoutPlugin(openmct: any) {
-  openmct.types.addType(`${NAMESPACE}.telemetry`, {
-    name: 'Caduceus Telemetry Point',
-    description: 'A telemetry measurement from the Caduceus system',
-    cssClass: 'icon-telemetry',
-  })
-
   openmct.objects.addRoot(
-    { namespace: AVIONICS_NAMESPACE, key: 'root' },
+    { namespace: AVIONICS_NAMESPACE, key: LAYOUT_KEY },
     openmct.priority.HIGH
   )
 
   openmct.objects.addProvider(AVIONICS_NAMESPACE, {
     get(identifier: { namespace: string; key: string }) {
-      if (identifier.key === 'root') {
-        return Promise.resolve({
-          identifier,
-          name: 'Avionics',
-          type: 'folder',
-          location: 'ROOT',
-          composition: [
-            { namespace: AVIONICS_NAMESPACE, key: LAYOUT_KEY },
-            { namespace: NAMESPACE, key: VL_BATTERY_GPS },
-            { namespace: NAMESPACE, key: VL_BATTERY_RECEIVED },
-            { namespace: AVIONICS_NAMESPACE, key: DATA_SOURCE_SWITCHER_KEY },
-          ],
-        })
-      }
-
       if (identifier.key === LAYOUT_KEY) {
         return Promise.resolve(makeLayout())
       }
