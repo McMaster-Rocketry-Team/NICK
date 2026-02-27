@@ -3,13 +3,17 @@ import type { DataSource, Datum } from '../plugins/data-provider'
 export const VL_BATTERY_GPS = 'vl_battery_v_gps'
 export const VL_BATTERY_RECEIVED = 'vl_battery_v_received'
 
-const TICK_INTERVAL_MS = 10
+const TICK_INTERVAL_MS = 20
 const GPS_TOGGLE_INTERVAL_MS = 2000
 
 export class FakeDataGenerator implements DataSource {
   /** @returns all keys this generator may emit */
-  allKeys(): string[] {
+  static allKeys(): string[] {
     return [VL_BATTERY_GPS, VL_BATTERY_RECEIVED]
+  }
+
+  allKeys(): string[] {
+    return FakeDataGenerator.allKeys()
   }
 
   /**

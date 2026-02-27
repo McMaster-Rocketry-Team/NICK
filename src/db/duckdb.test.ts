@@ -71,7 +71,8 @@ describe('getAllDataSQL', () => {
     await insertTelemetrySQL(query, TABLE, base + 100, 0.1)
     await insertTelemetrySQL(query, TABLE, base + 300, 0.3)
 
-    const data = await getAllDataSQL(query)
+    const result = await getAllDataSQL(query, [TABLE])
+    const data = result.get(TABLE)!
     expect(data).toHaveLength(3)
     expect(data[0].timestampMs).toBe(base + 100)
     expect(data[1].timestampMs).toBe(base + 200)
@@ -85,7 +86,8 @@ describe('getAllDataSQL', () => {
     await insertTelemetrySQL(query, TABLE, base + 200, 0.2)
     await insertTelemetrySQL(query, TABLE, base + 300, 0.3)
 
-    const data = await getAllDataSQL(query, base + 150)
+    const result = await getAllDataSQL(query, [TABLE], base + 150)
+    const data = result.get(TABLE)!
     expect(data).toHaveLength(2)
     expect(data[0].timestampMs).toBe(base + 200)
     expect(data[1].timestampMs).toBe(base + 300)
@@ -93,8 +95,21 @@ describe('getAllDataSQL', () => {
 
   it('returns empty array when table is empty', async () => {
     const { query } = await makeConn()
-    const data = await getAllDataSQL(query)
-    expect(data).toEqual([])
+    const result = await getAllDataSQL(query, [TABLE])
+    expect(result.get(TABLE)).toEqual([])
+  })
+
+  it('returns data for multiple tables', async () => {
+    const { query } = await makeConn()
+    const TABLE2 = 'vl_battery_v_received'
+    await ensureTable(query, TABLE2)
+    const base = 1_700_000_000_000
+    await insertTelemetrySQL(query, TABLE, base + 100, 0.1)
+    await insertTelemetrySQL(query, TABLE2, base + 200, 0.2)
+
+    const result = await getAllDataSQL(query, [TABLE, TABLE2])
+    expect(result.get(TABLE)).toHaveLength(1)
+    expect(result.get(TABLE2)).toHaveLength(1)
   })
 })
 

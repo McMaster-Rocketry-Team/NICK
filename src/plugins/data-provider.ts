@@ -49,7 +49,8 @@ const registeredKeys = new Set<string>()
 const keySubscribers = new Map<string, Set<(datum: OpenMCTDatum) => void>>()
 
 /**
- * Registers a data source: records its keys and starts its subscription.
+ * Registers a data source's keys so OpenMCT can resolve their objects,
+ * and starts its subscription to insert and forward live data.
  *
  * @param source  the data source to register
  */
@@ -73,6 +74,19 @@ export function registerDataSource(source: DataSource): void {
       }
     }
   })
+}
+
+/**
+ * Registers keys so OpenMCT can resolve their objects without starting
+ * a live data subscription. Use this when the backend does not produce
+ * local data (e.g. InfluxDB) but the layout still references these keys.
+ *
+ * @param keys  the datum keys to register
+ */
+export function registerDataSourceKeys(keys: string[]): void {
+  for (const key of keys) {
+    registeredKeys.add(key)
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

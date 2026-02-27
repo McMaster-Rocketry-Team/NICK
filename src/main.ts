@@ -10,7 +10,7 @@ const updateSW = registerSW({
   },
 })
 import { AvionicsLayoutPlugin } from './layout/avionics'
-import { DataProviderPlugin, registerDataSource } from './plugins/data-provider'
+import { DataProviderPlugin, registerDataSource, registerDataSourceKeys } from './plugins/data-provider'
 import { DataSourceSwitcherPlugin } from './plugins/data-source-switcher'
 import { FakeDataGenerator } from './sources/fake-data-generator'
 import { getBackendType } from './db/get-backend'
@@ -46,9 +46,11 @@ openmct.install(DataSourceSwitcherPlugin)
 // register layouts here
 openmct.install(AvionicsLayoutPlugin)
 
+// register data sources here
 if (getBackendType() === 'duckdb') {
-  // register data sources here
   registerDataSource(new FakeDataGenerator())
+} else {
+  registerDataSourceKeys(FakeDataGenerator.allKeys())
 }
 
 openmct.time.setTimeSystem('utc', {

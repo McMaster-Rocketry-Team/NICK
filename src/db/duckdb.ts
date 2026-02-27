@@ -9,6 +9,7 @@ import {
   type Row,
 } from './duckdb-store'
 
+let dbInstance: duckdb.AsyncDuckDB | null = null
 let connInstance: duckdb.AsyncDuckDBConnection | null = null
 let initPromise: Promise<duckdb.AsyncDuckDBConnection> | null = null
 
@@ -52,6 +53,7 @@ async function initDuckDB(): Promise<duckdb.AsyncDuckDBConnection> {
 
   const conn = await db.connect()
 
+  dbInstance = db
   connInstance = conn
 
   const CHECKPOINT_INTERVAL_MS = 1000
@@ -70,12 +72,46 @@ export async function getConnection(): Promise<duckdb.AsyncDuckDBConnection> {
   return initPromise
 }
 
+/**
+ * Terminates the DuckDB worker (releasing the OPFS file lock) then deletes
+ * the database file, wiping all stored telemetry.
+ * The caller must reload the page afterwards.
+ */
+export async function clearAllData(): Promise<void> {
+  if (dbInstance) {
+    await dbInstance.terminate()
+    dbInstance = null
+    connInstance = null
+    initPromise = null
+  }
+  const root = await navigator.storage.getDirectory()
+  await root.removeEntry('caduceus.db', { recursive: true }).catch(() => {
+    // File may not exist if no data was ever written; ignore
+  })
+}
+
+/**
+ * Reads all telemetry from every table in the database.
+ * @param afterTimestamp  if provided, only returns rows with timestamp > this value
+ * @returns map of key → datums for every table that exists
+ */
 export async function getAllData(
   afterTimestamp?: number
-): Promise<TelemetryDatum[]> {
+): Promise<Map<string, TelemetryDatum[]>> {
   const conn = await getConnection()
   const queryFn = (sql: string) => conn.query(sql).then(arrowToRows)
-  return getAllDataSQL(queryFn, afterTimestamp)
+  const result = await conn.query(
+    `SELECT table_name FROM information_schema.tables WHERE table_schema = 'main'`
+  )
+  const tables: string[] = []
+  for (const batch of result.batches) {
+    const col = batch.getChildAt(0)
+    if (!col) continue
+    for (let i = 0; i < batch.numRows; i++) {
+      tables.push(String(col.get(i)))
+    }
+  }
+  return getAllDataSQL(queryFn, tables, afterTimestamp)
 }
 
 export class DuckDBBackend implements TelemetryBackend {

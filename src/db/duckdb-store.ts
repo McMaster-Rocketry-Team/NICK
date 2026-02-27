@@ -43,16 +43,26 @@ export async function insertTelemetrySQL(
   await query(`INSERT INTO "${table}" VALUES (${timestampMs}, ${value})`)
 }
 
+/**
+ * Reads all telemetry from the given tables, returning a map of key → datums.
+ * @param tables  list of table names (keys) to read from
+ * @param afterTimestamp  if provided, only returns rows with timestamp > this value
+ */
 export async function getAllDataSQL(
   query: QueryFn,
+  tables: string[],
   afterTimestamp?: number
-): Promise<TelemetryDatum[]> {
+): Promise<Map<string, TelemetryDatum[]>> {
   const filter =
     afterTimestamp !== undefined ? `WHERE timestamp > ${afterTimestamp}` : ''
-  const rows = await query(
-    `SELECT timestamp, value FROM vl_battery_v ${filter} ORDER BY timestamp ASC`
-  )
-  return rows.map(toTelemetryDatum)
+  const result = new Map<string, TelemetryDatum[]>()
+  for (const table of tables) {
+    const rows = await query(
+      `SELECT timestamp, value FROM "${table}" ${filter} ORDER BY timestamp ASC`
+    )
+    result.set(table, rows.map(toTelemetryDatum))
+  }
+  return result
 }
 
 export async function queryTelemetrySQL(

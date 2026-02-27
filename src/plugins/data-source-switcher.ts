@@ -12,7 +12,7 @@ import {
   INFLUXDB_ORG_KEY,
   INFLUXDB_BUCKET_KEY,
 } from '../db/influxdb'
-import { getAllData } from '../db/duckdb'
+import { getAllData, clearAllData } from '../db/duckdb'
 import { NAMESPACE } from './data-provider'
 
 const LAST_UPLOAD_KEY = 'caduceus-last-upload-ts'
@@ -177,28 +177,37 @@ function buildUI(container: HTMLElement): void {
 
     try {
       const afterTs = lastUploadTs ? Number(lastUploadTs) : undefined
-      const data = await getAllData(afterTs)
+      const dataByKey = await getAllData(afterTs)
 
-      if (data.length === 0) {
+      const totalRows = Array.from(dataByKey.values()).reduce(
+        (sum, rows) => sum + rows.length,
+        0
+      )
+      if (totalRows === 0) {
         uploadStatus.textContent = 'No new data to upload.'
         return
       }
 
-      uploadStatus.textContent = `Uploading ${data.length} rows…`
+      uploadStatus.textContent = `Uploading ${totalRows} rows…`
       const influx = new InfluxDBBackend()
 
       let uploaded = 0
-      for (let i = 0; i < data.length; i += UPLOAD_BATCH_SIZE) {
-        const batch = data.slice(i, i + UPLOAD_BATCH_SIZE)
-        await influx.writeBatch('vl_battery_v', batch)
-        uploaded += batch.length
-        uploadStatus.textContent = `Uploaded ${uploaded}/${data.length} rows…`
+      let maxTs = 0
+      for (const [key, rows] of dataByKey) {
+        for (let i = 0; i < rows.length; i += UPLOAD_BATCH_SIZE) {
+          const batch = rows.slice(i, i + UPLOAD_BATCH_SIZE)
+          await influx.writeBatch(key, batch)
+          uploaded += batch.length
+          uploadStatus.textContent = `Uploaded ${uploaded}/${totalRows} rows…`
+        }
+        if (rows.length > 0) {
+          maxTs = Math.max(maxTs, rows[rows.length - 1].timestampMs)
+        }
       }
 
-      const maxTs = data[data.length - 1].timestampMs
       localStorage.setItem(LAST_UPLOAD_KEY, String(maxTs))
       lastUploadLabel.textContent = `Last uploaded: ${formatTimestamp(maxTs)}`
-      uploadStatus.textContent = `Done. ${data.length} rows uploaded.`
+      uploadStatus.textContent = `Done. ${totalRows} rows uploaded.`
     } catch (err) {
       uploadStatus.style.color = '#cc0000'
       uploadStatus.textContent = `Error: ${err instanceof Error ? err.message : String(err)}`
@@ -208,8 +217,35 @@ function buildUI(container: HTMLElement): void {
     }
   })
 
+  const deleteBtn = document.createElement('button')
+  deleteBtn.textContent = 'Delete Local Data'
+  deleteBtn.style.cssText = actionButtonStyle()
+
+  const deleteStatus = document.createElement('span')
+  deleteStatus.style.cssText = 'font-size: 11px; color: #888;'
+
+  deleteBtn.addEventListener('click', async () => {
+    if (!confirm('Delete all local DuckDB data? This cannot be undone.')) return
+    deleteBtn.disabled = true
+    deleteBtn.style.opacity = '0.6'
+    deleteStatus.style.color = '#888'
+    deleteStatus.textContent = 'Deleting…'
+    try {
+      await clearAllData()
+      localStorage.removeItem(LAST_UPLOAD_KEY)
+      location.reload()
+    } catch (err) {
+      deleteStatus.style.color = '#cc0000'
+      deleteStatus.textContent = `Error: ${err instanceof Error ? err.message : String(err)}`
+      deleteBtn.disabled = false
+      deleteBtn.style.opacity = '1'
+    }
+  })
+
+  uploadRow.appendChild(deleteBtn)
   uploadRow.appendChild(uploadBtn)
   uploadRow.appendChild(uploadStatus)
+  uploadRow.appendChild(deleteStatus)
   mainPanel.appendChild(uploadRow)
 
   // ── Config panel (hidden by default) ────────────────────────────────────

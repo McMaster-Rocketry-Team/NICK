@@ -312,7 +312,8 @@ describe('DuckDB → InfluxDB upload roundtrip', () => {
     }
 
     // ── Step 2: read all data back from DuckDB ──
-    const duckData = await getAllDataSQL(duckQuery)
+    const duckResult = await getAllDataSQL(duckQuery, [KEY])
+    const duckData = duckResult.get(KEY)!
     expect(duckData).toHaveLength(POINT_COUNT)
 
     // ── Step 3: upload to InfluxDB ──
