@@ -1,24 +1,14 @@
-import './style.css'
-import typescriptLogo from './typescript.svg'
-import viteLogo from '/vite.svg'
-import { setupCounter } from './counter.ts'
+import openmct from 'openmct';
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <div>
-    <a href="https://vite.dev" target="_blank">
-      <img src="${viteLogo}" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://www.typescriptlang.org/" target="_blank">
-      <img src="${typescriptLogo}" class="logo vanilla" alt="TypeScript logo" />
-    </a>
-    <h1>Vite + TypeScript</h1>
-    <div class="card">
-      <button id="counter" type="button"></button>
-    </div>
-    <p class="read-the-docs">
-      Click on the Vite and TypeScript logos to learn more
-    </p>
-  </div>
-`
+openmct.install(openmct.plugins.LocalStorage());
+openmct.install(openmct.plugins.MyItems());
+openmct.install(openmct.plugins.UTCTimeSystem());
+openmct.install(openmct.plugins.Clock({ enableClockIndicator: true }));
+openmct.install(openmct.plugins.Espresso());
 
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+openmct.time.setTimeSystem('utc', {
+  start: Date.now() - 15 * 60 * 1000,
+  end: Date.now(),
+});
+
+openmct.start();
