@@ -33,4 +33,8 @@ openmct.time.setTimeSystem('utc', {
   end: Date.now(),
 })
 
+if (!window.location.hash || window.location.hash === '#/' || window.location.hash === '#/browse/') {
+  window.location.hash = '#/browse/caduceus:layout'
+}
+
 openmct.start()
