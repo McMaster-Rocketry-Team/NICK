@@ -1,4 +1,5 @@
 import * as duckdb from '@duckdb/duckdb-wasm'
+import type { Table } from 'apache-arrow'
 
 export interface TelemetryDatum {
   timestamp: number
@@ -66,22 +67,7 @@ export async function insertTelemetry(
   )
 }
 
-// If two consecutive points are further apart than this, insert a NaN gap
-// marker so the plot line breaks instead of drawing a long diagonal.
-const GAP_THRESHOLD_MS = 200
-
-export async function queryTelemetry(
-  table: string,
-  start: number,
-  end: number,
-): Promise<TelemetryDatum[]> {
-  const conn = await getConnection()
-  const result = await conn.query(
-    `SELECT timestamp, value FROM ${table}
-     WHERE timestamp >= ${start} AND timestamp <= ${end}
-     ORDER BY timestamp ASC`,
-  )
-
+function readBatches(result: Table): TelemetryDatum[] {
   const raw: TelemetryDatum[] = []
   for (const batch of result.batches) {
     const timestamps = batch.getChildAt(0)
@@ -94,25 +80,68 @@ export async function queryTelemetry(
       })
     }
   }
+  return raw
+}
 
-  const datums: TelemetryDatum[] = []
+export interface QueryOptions {
+  strategy?: 'minmax' | 'latest'
+  size?: number
+}
 
-  const firstTs = raw.length > 0 ? raw[0].timestamp : undefined
-  if (firstTs !== undefined && firstTs - start > GAP_THRESHOLD_MS) {
-    datums.push({ timestamp: start, value: NaN })
+export async function queryTelemetry(
+  table: string,
+  start: number,
+  end: number,
+  options?: QueryOptions,
+): Promise<TelemetryDatum[]> {
+  const conn = await getConnection()
+  const strategy = options?.strategy
+  const size = options?.size
+
+  if (strategy === 'latest' && size) {
+    const result = await conn.query(
+      `SELECT timestamp, value FROM ${table}
+       WHERE timestamp >= ${start} AND timestamp <= ${end}
+       ORDER BY timestamp DESC
+       LIMIT ${size}`,
+    )
+    const raw = readBatches(result)
+    raw.reverse()
+    return raw
   }
 
-  for (let i = 0; i < raw.length; i++) {
-    if (i > 0 && raw[i].timestamp - raw[i - 1].timestamp > GAP_THRESHOLD_MS) {
-      datums.push({ timestamp: raw[i - 1].timestamp + 1, value: NaN })
-    }
-    datums.push(raw[i])
+  if (strategy === 'minmax' && size && size > 0) {
+    const buckets = Math.max(1, Math.floor(size / 2))
+    const result = await conn.query(
+      `WITH bucketed AS (
+        SELECT timestamp, value,
+          NTILE(${buckets}) OVER (ORDER BY timestamp) AS bucket
+        FROM ${table}
+        WHERE timestamp >= ${start} AND timestamp <= ${end}
+      ),
+      extremes AS (
+        SELECT
+          arg_min(timestamp, value) AS min_ts, MIN(value) AS min_val,
+          arg_max(timestamp, value) AS max_ts, MAX(value) AS max_val
+        FROM bucketed
+        GROUP BY bucket
+      )
+      SELECT timestamp, value FROM (
+        SELECT min_ts AS timestamp, min_val AS value FROM extremes
+        UNION ALL
+        SELECT max_ts AS timestamp, max_val AS value FROM extremes
+        WHERE max_ts != min_ts
+      )
+      ORDER BY timestamp ASC`,
+    )
+    return readBatches(result)
   }
 
-  const lastTs = raw.length > 0 ? raw[raw.length - 1].timestamp : undefined
-  if (lastTs !== undefined && end - lastTs > GAP_THRESHOLD_MS) {
-    datums.push({ timestamp: lastTs + 1, value: NaN })
-  }
-
-  return datums
+  // No strategy / no size: return all points
+  const result = await conn.query(
+    `SELECT timestamp, value FROM ${table}
+     WHERE timestamp >= ${start} AND timestamp <= ${end}
+     ORDER BY timestamp ASC`,
+  )
+  return readBatches(result)
 }

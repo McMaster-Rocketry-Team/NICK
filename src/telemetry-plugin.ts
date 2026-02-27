@@ -1,9 +1,14 @@
-import { getConnection, insertTelemetry, queryTelemetry } from './duckdb'
+import {
+  getConnection,
+  insertTelemetry,
+  queryTelemetry,
+  type QueryOptions,
+} from './duckdb'
 
 const NAMESPACE = 'caduceus'
 const SENSOR_KEY = 'vl_battery_v'
 const TABLE_NAME = 'vl_battery_v'
-const TICK_INTERVAL_MS = 100
+const TICK_INTERVAL_MS = 10
 
 type Callback = (datum: { timestamp: number; value: number }) => void
 
@@ -94,10 +99,17 @@ export function VlBatteryPlugin(openmct: any) {
 
     async request(
       domainObject: { identifier: { key: string } },
-      options: { start: number; end: number },
+      options: { start: number; end: number; strategy?: string; size?: number },
     ) {
       if (domainObject.identifier.key !== SENSOR_KEY) return []
-      return queryTelemetry(TABLE_NAME, options.start, options.end)
+      const queryOpts: QueryOptions = {}
+      if (options.strategy === 'minmax' || options.strategy === 'latest') {
+        queryOpts.strategy = options.strategy
+      }
+      if (options.size) {
+        queryOpts.size = options.size
+      }
+      return queryTelemetry(TABLE_NAME, options.start, options.end, queryOpts)
     },
 
     supportsSubscribe(domainObject: { identifier: { namespace: string; key: string } }) {
