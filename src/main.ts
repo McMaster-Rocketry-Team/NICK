@@ -10,7 +10,11 @@ const updateSW = registerSW({
   },
 })
 import { AvionicsLayoutPlugin } from './layout/avionics'
-import { DataProviderPlugin, registerDataSource, registerDataSourceKeys } from './plugins/data-provider'
+import {
+  DataProviderPlugin,
+  registerDataSource,
+  registerDataSourceKeys,
+} from './plugins/data-provider'
 import { DataSourceSwitcherPlugin } from './plugins/data-source-switcher'
 import { FakeDataGenerator } from './sources/fake-data-generator'
 import { getBackendType } from './db/get-backend'
