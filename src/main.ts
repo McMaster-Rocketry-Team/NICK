@@ -1,10 +1,32 @@
 import openmct from 'openmct'
+import { VlBatteryPlugin } from './telemetry-plugin'
 
 openmct.install(openmct.plugins.LocalStorage())
 openmct.install(openmct.plugins.MyItems())
 openmct.install(openmct.plugins.UTCTimeSystem())
 openmct.install(openmct.plugins.Clock({ enableClockIndicator: true }))
-openmct.install(openmct.plugins.Espresso())
+openmct.install(openmct.plugins.Snow())
+openmct.install(
+  openmct.plugins.Conductor({
+    menuOptions: [
+      {
+        clock: 'local',
+        timeSystem: 'utc',
+        clockOffsets: { start: -(15 * 60 * 1000), end: 0 },
+        zoomOutLimit: 365 * 24 * 60 * 60 * 1000,
+        zoomInLimit: 1000,
+      },
+      {
+        timeSystem: 'utc',
+        bounds: { start: Date.now() - 15 * 60 * 1000, end: Date.now() },
+        zoomOutLimit: 365 * 24 * 60 * 60 * 1000,
+        zoomInLimit: 1000,
+      },
+    ],
+  }),
+)
+
+openmct.install(VlBatteryPlugin)
 
 openmct.time.setTimeSystem('utc', {
   start: Date.now() - 15 * 60 * 1000,
