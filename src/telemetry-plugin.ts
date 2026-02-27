@@ -131,7 +131,7 @@ function makeLayout() {
       containers: [
         {
           id: CONTAINER_TOP_ID,
-          size: 65,
+          size: 80,
           frames: [
             {
               id: FRAME_PLOT_ID,
@@ -142,7 +142,7 @@ function makeLayout() {
         },
         {
           id: CONTAINER_BOTTOM_ID,
-          size: 35,
+          size: 20,
           frames: [
             {
               id: FRAME_SWITCHER_ID,

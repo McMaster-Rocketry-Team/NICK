@@ -22,145 +22,127 @@ function formatTimestamp(ts: number | null): string {
   return new Date(ts).toLocaleString()
 }
 
+async function testInfluxConfig(url: string, token: string, org: string): Promise<void> {
+  const resp = await fetch(
+    `${url}/api/v2/buckets?org=${encodeURIComponent(org)}&limit=1`,
+    {
+      headers: { Authorization: `Token ${token}` },
+    },
+  )
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '')
+    let msg = `HTTP ${resp.status}`
+    try {
+      const json = JSON.parse(body)
+      if (json.message) msg = json.message
+    } catch {
+      // ignore
+    }
+    throw new Error(msg)
+  }
+}
+
 function buildUI(container: HTMLElement): void {
   container.innerHTML = ''
   container.style.cssText = `
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding: 16px;
+    padding: 14px 16px;
     height: 100%;
     overflow-y: auto;
     box-sizing: border-box;
-    color: var(--colorBodyFg, #fff);
+    color: #333;
     font-family: var(--fontFace, 'Helvetica Neue', Helvetica, Arial, sans-serif);
     font-size: 12px;
+    background: #fff;
   `
 
-  // ── Section: Backend Switch ──────────────────────────────────────────────
-  const switchSection = document.createElement('div')
-  switchSection.style.cssText = sectionStyle()
+  // ── Main panel ───────────────────────────────────────────────────────────
+  const mainPanel = document.createElement('div')
+  mainPanel.style.cssText = 'display: flex; flex-direction: column; gap: 14px;'
+  container.appendChild(mainPanel)
 
-  const switchTitle = document.createElement('div')
-  switchTitle.textContent = 'Active Backend'
-  switchTitle.style.cssText = sectionTitleStyle()
-  switchSection.appendChild(switchTitle)
+  // Active Backend section
+  const currentBackend = getBackendType()
+
+  const backendLabel = document.createElement('div')
+  backendLabel.style.cssText = `
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #888;
+    margin-bottom: 6px;
+  `
+  backendLabel.textContent = 'Active Backend'
+  mainPanel.appendChild(backendLabel)
 
   const switchRow = document.createElement('div')
-  switchRow.style.cssText = 'display: flex; gap: 8px; align-items: center;'
-
-  const currentBackend = getBackendType()
+  switchRow.style.cssText = 'display: flex; gap: 6px; align-items: center;'
 
   const duckdbBtn = makeBackendButton('DuckDB (Local)', 'duckdb', currentBackend)
   const influxBtn = makeBackendButton('InfluxDB (Remote)', 'influxdb', currentBackend)
 
-  function makeBackendButton(label: string, type: BackendType, active: BackendType) {
-    const btn = document.createElement('button')
-    btn.textContent = label
-    btn.style.cssText = buttonStyle(type === active)
-    btn.addEventListener('click', () => {
-      if (getBackendType() === type) return
-      localStorage.setItem(BACKEND_STORAGE_KEY, type)
-      location.reload()
-    })
-    return btn
-  }
+  // ── Settings gear button (inline, after InfluxDB button) ─────────────────
+  const gearBtn = document.createElement('button')
+  gearBtn.innerHTML = '&#9881;'
+  gearBtn.title = 'InfluxDB Configuration'
+  gearBtn.style.cssText = `
+    background: none;
+    border: none;
+    font-size: 15px;
+    cursor: pointer;
+    color: #888;
+    padding: 2px 4px;
+    line-height: 1;
+    border-radius: 3px;
+    margin-left: 2px;
+  `
+  gearBtn.addEventListener('mouseenter', () => { gearBtn.style.color = '#0066cc' })
+  gearBtn.addEventListener('mouseleave', () => { gearBtn.style.color = '#888' })
 
   switchRow.appendChild(duckdbBtn)
   switchRow.appendChild(influxBtn)
-  switchSection.appendChild(switchRow)
+  switchRow.appendChild(gearBtn)
+  mainPanel.appendChild(switchRow)
 
-  const activeLabel = document.createElement('div')
-  activeLabel.textContent = `Currently using: ${currentBackend === 'duckdb' ? 'DuckDB (Local)' : 'InfluxDB (Remote)'}`
-  activeLabel.style.cssText = `
-    margin-top: 6px;
-    color: var(--colorStatusDefault, #aaa);
+  // Upload section
+  const divider = document.createElement('div')
+  divider.style.cssText = 'border-top: 1px solid #e0e0e0; margin: 2px 0;'
+  mainPanel.appendChild(divider)
+
+  const uploadLabel = document.createElement('div')
+  uploadLabel.style.cssText = `
     font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #888;
+    margin-bottom: 6px;
   `
-  switchSection.appendChild(activeLabel)
-  container.appendChild(switchSection)
-
-  // ── Section: InfluxDB Config ─────────────────────────────────────────────
-  const configSection = document.createElement('div')
-  configSection.style.cssText = sectionStyle()
-
-  const configTitle = document.createElement('div')
-  configTitle.textContent = 'InfluxDB Configuration'
-  configTitle.style.cssText = sectionTitleStyle()
-  configSection.appendChild(configTitle)
-
-  const config = loadInfluxConfig()
-
-  const urlField = makeField('URL', INFLUXDB_URL_KEY, config.url, 'http://localhost:8086')
-  const tokenField = makeField('API Token', INFLUXDB_TOKEN_KEY, config.token, 'your-token-here', true)
-  const orgField = makeField('Organization', INFLUXDB_ORG_KEY, config.org, 'my-org')
-  const bucketField = makeField('Bucket', INFLUXDB_BUCKET_KEY, config.bucket, 'telemetry')
-
-  configSection.appendChild(urlField.row)
-  configSection.appendChild(tokenField.row)
-  configSection.appendChild(orgField.row)
-  configSection.appendChild(bucketField.row)
-
-  const saveRow = document.createElement('div')
-  saveRow.style.cssText = 'display: flex; align-items: center; gap: 10px; margin-top: 4px;'
-
-  const saveBtn = document.createElement('button')
-  saveBtn.textContent = 'Save Config'
-  saveBtn.style.cssText = buttonStyle(false)
-
-  const saveStatus = document.createElement('span')
-  saveStatus.style.cssText = 'font-size: 11px; color: var(--colorStatusDefault, #aaa);'
-
-  saveBtn.addEventListener('click', () => {
-    saveInfluxConfig({
-      url: urlField.input.value.trim(),
-      token: tokenField.input.value.trim(),
-      org: orgField.input.value.trim(),
-      bucket: bucketField.input.value.trim(),
-    })
-    saveStatus.textContent = 'Saved.'
-    setTimeout(() => {
-      saveStatus.textContent = ''
-    }, 2000)
-  })
-
-  saveRow.appendChild(saveBtn)
-  saveRow.appendChild(saveStatus)
-  configSection.appendChild(saveRow)
-  container.appendChild(configSection)
-
-  // ── Section: Upload DuckDB → InfluxDB ────────────────────────────────────
-  const uploadSection = document.createElement('div')
-  uploadSection.style.cssText = sectionStyle()
-
-  const uploadTitle = document.createElement('div')
-  uploadTitle.textContent = 'Upload Local Data to InfluxDB'
-  uploadTitle.style.cssText = sectionTitleStyle()
-  uploadSection.appendChild(uploadTitle)
+  uploadLabel.textContent = 'Upload Local Data to InfluxDB'
+  mainPanel.appendChild(uploadLabel)
 
   const lastUploadTs = localStorage.getItem(LAST_UPLOAD_KEY)
   const lastUploadLabel = document.createElement('div')
-  lastUploadLabel.style.cssText = `
-    margin-bottom: 8px;
-    color: var(--colorStatusDefault, #aaa);
-    font-size: 11px;
-  `
+  lastUploadLabel.style.cssText = 'font-size: 11px; color: #888;'
   lastUploadLabel.textContent = `Last uploaded: ${formatTimestamp(lastUploadTs ? Number(lastUploadTs) : null)}`
-  uploadSection.appendChild(lastUploadLabel)
+  mainPanel.appendChild(lastUploadLabel)
 
   const uploadRow = document.createElement('div')
   uploadRow.style.cssText = 'display: flex; align-items: center; gap: 10px;'
 
   const uploadBtn = document.createElement('button')
   uploadBtn.textContent = 'Upload New Data'
-  uploadBtn.style.cssText = buttonStyle(false)
+  uploadBtn.style.cssText = actionButtonStyle()
 
   const uploadStatus = document.createElement('span')
-  uploadStatus.style.cssText = 'font-size: 11px; color: var(--colorStatusDefault, #aaa);'
+  uploadStatus.style.cssText = 'font-size: 11px; color: #888;'
 
   uploadBtn.addEventListener('click', async () => {
     uploadBtn.disabled = true
     uploadBtn.style.opacity = '0.6'
+    uploadStatus.style.color = '#888'
     uploadStatus.textContent = 'Reading local data…'
 
     try {
@@ -173,11 +155,7 @@ function buildUI(container: HTMLElement): void {
       }
 
       uploadStatus.textContent = `Uploading ${data.length} rows…`
-
-      const currentConfig = loadInfluxConfig()
       const influx = new InfluxDBBackend()
-      // Re-read config in case user just saved
-      void currentConfig
 
       let uploaded = 0
       for (let i = 0; i < data.length; i += UPLOAD_BATCH_SIZE) {
@@ -187,13 +165,12 @@ function buildUI(container: HTMLElement): void {
         uploadStatus.textContent = `Uploaded ${uploaded}/${data.length} rows…`
       }
 
-      // Record the highest received_timestamp we uploaded.
-      // data is sorted ASC by received_timestamp, so the last element is the max.
       const maxTs = data[data.length - 1].receivedTimestamp
       localStorage.setItem(LAST_UPLOAD_KEY, String(maxTs))
       lastUploadLabel.textContent = `Last uploaded: ${formatTimestamp(maxTs)}`
       uploadStatus.textContent = `Done. ${data.length} rows uploaded.`
     } catch (err) {
+      uploadStatus.style.color = '#cc0000'
       uploadStatus.textContent = `Error: ${err instanceof Error ? err.message : String(err)}`
     } finally {
       uploadBtn.disabled = false
@@ -203,8 +180,130 @@ function buildUI(container: HTMLElement): void {
 
   uploadRow.appendChild(uploadBtn)
   uploadRow.appendChild(uploadStatus)
-  uploadSection.appendChild(uploadRow)
-  container.appendChild(uploadSection)
+  mainPanel.appendChild(uploadRow)
+
+  // ── Config panel (hidden by default) ────────────────────────────────────
+  const configPanel = document.createElement('div')
+  configPanel.style.cssText = 'display: none; flex-direction: column; gap: 0;'
+  container.appendChild(configPanel)
+
+  const configHeading = document.createElement('div')
+  configHeading.style.cssText = `
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #888;
+    margin-bottom: 10px;
+  `
+  configHeading.textContent = 'InfluxDB Configuration'
+  configPanel.appendChild(configHeading)
+
+  const config = loadInfluxConfig()
+  const urlField = makeField('URL', INFLUXDB_URL_KEY, config.url, 'http://localhost:8086')
+  const tokenField = makeField('API Token', INFLUXDB_TOKEN_KEY, config.token, 'your-token-here', true)
+  const orgField = makeField('Organization', INFLUXDB_ORG_KEY, config.org, 'my-org')
+  const bucketField = makeField('Bucket', INFLUXDB_BUCKET_KEY, config.bucket, 'telemetry')
+
+  configPanel.appendChild(urlField.row)
+  configPanel.appendChild(tokenField.row)
+  configPanel.appendChild(orgField.row)
+  configPanel.appendChild(bucketField.row)
+
+  const saveRow = document.createElement('div')
+  saveRow.style.cssText = 'display: flex; align-items: center; gap: 8px; margin-top: 8px;'
+
+  const closeBtn = document.createElement('button')
+  closeBtn.textContent = 'Close'
+  closeBtn.style.cssText = `
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    padding: 5px 12px;
+    font-size: 11px;
+    cursor: pointer;
+    color: #555;
+    font-family: inherit;
+  `
+  closeBtn.addEventListener('mouseenter', () => { closeBtn.style.borderColor = '#0066cc'; closeBtn.style.color = '#0066cc' })
+  closeBtn.addEventListener('mouseleave', () => { closeBtn.style.borderColor = '#ccc'; closeBtn.style.color = '#555' })
+
+  const saveBtn = document.createElement('button')
+  saveBtn.textContent = 'Save & Test'
+  saveBtn.style.cssText = actionButtonStyle()
+
+  const saveStatus = document.createElement('span')
+  saveStatus.style.cssText = 'font-size: 11px;'
+
+  saveBtn.addEventListener('click', async () => {
+    saveBtn.disabled = true
+    saveBtn.style.opacity = '0.6'
+    saveStatus.style.color = '#888'
+    saveStatus.textContent = 'Testing connection…'
+
+    const newConfig = {
+      url: urlField.input.value.trim(),
+      token: tokenField.input.value.trim(),
+      org: orgField.input.value.trim(),
+      bucket: bucketField.input.value.trim(),
+    }
+
+    try {
+      await testInfluxConfig(newConfig.url, newConfig.token, newConfig.org)
+      saveInfluxConfig(newConfig)
+      saveStatus.style.color = '#2a7a2a'
+      saveStatus.textContent = 'Connected & saved.'
+      setTimeout(() => { saveStatus.textContent = '' }, 3000)
+    } catch (err) {
+      saveStatus.style.color = '#cc0000'
+      saveStatus.textContent = `Connection failed: ${err instanceof Error ? err.message : String(err)}`
+    } finally {
+      saveBtn.disabled = false
+      saveBtn.style.opacity = '1'
+    }
+  })
+
+  saveRow.appendChild(closeBtn)
+  saveRow.appendChild(saveBtn)
+  saveRow.appendChild(saveStatus)
+  configPanel.appendChild(saveRow)
+
+  // ── Toggle logic ─────────────────────────────────────────────────────────
+  function openConfig() {
+    mainPanel.style.display = 'none'
+    configPanel.style.display = 'flex'
+  }
+
+  function closeConfig() {
+    mainPanel.style.display = 'flex'
+    configPanel.style.display = 'none'
+  }
+
+  gearBtn.addEventListener('click', openConfig)
+  closeBtn.addEventListener('click', closeConfig)
+}
+
+function makeBackendButton(label: string, type: BackendType, active: BackendType) {
+  const btn = document.createElement('button')
+  btn.textContent = label
+  const isActive = type === active
+  btn.style.cssText = `
+    background: ${isActive ? '#0066cc' : '#f0f0f0'};
+    color: ${isActive ? '#fff' : '#333'};
+    border: 1px solid ${isActive ? '#0066cc' : '#ccc'};
+    border-radius: 3px;
+    padding: 5px 12px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    font-weight: ${isActive ? '600' : '400'};
+  `
+  btn.addEventListener('click', () => {
+    if (getBackendType() === type) return
+    localStorage.setItem(BACKEND_STORAGE_KEY, type)
+    location.reload()
+  })
+  return btn
 }
 
 function makeField(
@@ -215,14 +314,14 @@ function makeField(
   isPassword = false,
 ) {
   const row = document.createElement('div')
-  row.style.cssText = 'display: flex; align-items: center; gap: 8px; margin-bottom: 6px;'
+  row.style.cssText = 'display: flex; align-items: center; gap: 8px; margin-bottom: 7px;'
 
   const lbl = document.createElement('label')
   lbl.textContent = label
   lbl.style.cssText = `
     width: 90px;
     flex-shrink: 0;
-    color: var(--colorBodyFg, #fff);
+    color: #555;
     font-size: 11px;
   `
 
@@ -232,48 +331,29 @@ function makeField(
   input.placeholder = placeholder
   input.style.cssText = `
     flex: 1;
-    background: var(--colorInputBg, #1c1c1f);
-    color: var(--colorInputFg, #fff);
-    border: 1px solid var(--colorInputBorder, #555);
+    background: #f8f8f8;
+    color: #222;
+    border: 1px solid #ccc;
     border-radius: 3px;
     padding: 4px 8px;
     font-size: 11px;
     outline: none;
     min-width: 0;
+    font-family: inherit;
   `
+  input.addEventListener('focus', () => { input.style.borderColor = '#0066cc' })
+  input.addEventListener('blur', () => { input.style.borderColor = '#ccc' })
 
   row.appendChild(lbl)
   row.appendChild(input)
   return { row, input }
 }
 
-function sectionStyle(): string {
+function actionButtonStyle(): string {
   return `
-    background: var(--colorBodyBg, #1c1c1f);
-    border: 1px solid var(--colorInteriorBorder, #333);
-    border-radius: 4px;
-    padding: 12px;
-  `
-}
-
-function sectionTitleStyle(): string {
-  return `
-    font-size: 12px;
-    font-weight: bold;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--colorBodyFg, #fff);
-    margin-bottom: 10px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--colorInteriorBorder, #333);
-  `
-}
-
-function buttonStyle(active: boolean): string {
-  return `
-    background: ${active ? 'var(--colorBtnBgActive, #00b4ff)' : 'var(--colorBtnBg, #2e2e33)'};
-    color: ${active ? 'var(--colorBtnFgActive, #000)' : 'var(--colorBtnFg, #fff)'};
-    border: 1px solid ${active ? 'var(--colorBtnBorderActive, #00b4ff)' : 'var(--colorBtnBorder, #555)'};
+    background: #f0f0f0;
+    color: #333;
+    border: 1px solid #ccc;
     border-radius: 3px;
     padding: 5px 12px;
     font-size: 11px;
@@ -322,8 +402,6 @@ export function DataSourceSwitcherPlugin(openmct: any) {
     },
   })
 
-  // Ensure the object is resolvable (provider already added in telemetry-plugin,
-  // but we add a fallback here in case this plugin is installed independently)
   openmct.objects.addProvider(`${NAMESPACE}-dss-fallback`, {
     get(identifier: { namespace: string; key: string }) {
       if (identifier.namespace === NAMESPACE && identifier.key === KEY) {
