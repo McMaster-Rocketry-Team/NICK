@@ -13,6 +13,7 @@ import {
   INFLUXDB_BUCKET_KEY,
 } from '../db/influxdb'
 import { getAllData } from '../db/duckdb'
+import { NAMESPACE } from './data-provider'
 
 const LAST_UPLOAD_KEY = 'caduceus-last-upload-ts'
 const UPLOAD_BATCH_SIZE = 5000
@@ -441,22 +442,19 @@ function actionButtonStyle(): string {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function DataSourceSwitcherPlugin(openmct: any) {
-  const NAMESPACE = 'caduceus'
-  const KEY = 'data-source-switcher'
-
-  openmct.types.addType('caduceus.data-source-switcher', {
+  openmct.types.addType(`${NAMESPACE}.data-source-switcher`, {
     name: 'Data Source Switcher',
     description: 'Configure and switch between DuckDB and InfluxDB backends',
     cssClass: 'icon-database',
   })
 
   openmct.objectViews.addProvider({
-    key: 'caduceus.data-source-switcher.view',
+    key: `${NAMESPACE}.data-source-switcher.view`,
     name: 'Data Source Switcher',
     cssClass: 'icon-database',
 
     canView(domainObject: { type: string }) {
-      return domainObject.type === 'caduceus.data-source-switcher'
+      return domainObject.type === `${NAMESPACE}.data-source-switcher`
     },
 
     view(_domainObject: unknown) {
@@ -476,20 +474,6 @@ export function DataSourceSwitcherPlugin(openmct: any) {
           return openmct.priority.HIGH
         },
       }
-    },
-  })
-
-  openmct.objects.addProvider(`${NAMESPACE}-dss-fallback`, {
-    get(identifier: { namespace: string; key: string }) {
-      if (identifier.namespace === NAMESPACE && identifier.key === KEY) {
-        return Promise.resolve({
-          identifier,
-          name: 'Data Source Switcher',
-          type: 'caduceus.data-source-switcher',
-          location: `${NAMESPACE}:layout`,
-        })
-      }
-      return Promise.resolve(undefined)
     },
   })
 }

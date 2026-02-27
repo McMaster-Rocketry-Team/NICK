@@ -83,7 +83,7 @@ export function DataProviderPlugin(openmct: any) {
       return Promise.resolve({
         identifier,
         name: identifier.key,
-        type: 'caduceus.telemetry',
+        type: `${NAMESPACE}.telemetry`,
         location: `${NAMESPACE}:root`,
         telemetry: { values: TELEMETRY_VALUES },
       })

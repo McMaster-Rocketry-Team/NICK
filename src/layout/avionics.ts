@@ -4,6 +4,8 @@ import {
 } from '../sources/fake-data-generator'
 import { NAMESPACE } from '../plugins/data-provider'
 
+export const AVIONICS_NAMESPACE = 'avionics'
+
 const OVERLAY_PLOT_KEY = 'vl_battery_overlay'
 const LAYOUT_KEY = 'layout'
 export const DATA_SOURCE_SWITCHER_KEY = 'data-source-switcher'
@@ -16,10 +18,10 @@ const FRAME_SWITCHER_ID = 'f0000000-0000-0000-0000-000000000002'
 
 function makeOverlayPlot() {
   return {
-    identifier: { namespace: NAMESPACE, key: OVERLAY_PLOT_KEY },
+    identifier: { namespace: AVIONICS_NAMESPACE, key: OVERLAY_PLOT_KEY },
     name: 'VL Battery Voltage',
     type: 'telemetry.plot.overlay',
-    location: `${NAMESPACE}:${LAYOUT_KEY}`,
+    location: `${AVIONICS_NAMESPACE}:${LAYOUT_KEY}`,
     composition: [
       { namespace: NAMESPACE, key: VL_BATTERY_RECEIVED },
       { namespace: NAMESPACE, key: VL_BATTERY_GPS },
@@ -50,13 +52,13 @@ function makeOverlayPlot() {
 
 function makeLayout() {
   return {
-    identifier: { namespace: NAMESPACE, key: LAYOUT_KEY },
+    identifier: { namespace: AVIONICS_NAMESPACE, key: LAYOUT_KEY },
     name: 'Avionics Dashboard',
     type: 'flexible-layout',
-    location: `${NAMESPACE}:root`,
+    location: `${AVIONICS_NAMESPACE}:root`,
     composition: [
-      { namespace: NAMESPACE, key: OVERLAY_PLOT_KEY },
-      { namespace: NAMESPACE, key: DATA_SOURCE_SWITCHER_KEY },
+      { namespace: AVIONICS_NAMESPACE, key: OVERLAY_PLOT_KEY },
+      { namespace: AVIONICS_NAMESPACE, key: DATA_SOURCE_SWITCHER_KEY },
     ],
     configuration: {
       rowsLayout: true,
@@ -68,7 +70,7 @@ function makeLayout() {
             {
               id: FRAME_PLOT_ID,
               domainObjectIdentifier: {
-                namespace: NAMESPACE,
+                namespace: AVIONICS_NAMESPACE,
                 key: OVERLAY_PLOT_KEY,
               },
               noFrame: false,
@@ -82,7 +84,7 @@ function makeLayout() {
             {
               id: FRAME_SWITCHER_ID,
               domainObjectIdentifier: {
-                namespace: NAMESPACE,
+                namespace: AVIONICS_NAMESPACE,
                 key: DATA_SOURCE_SWITCHER_KEY,
               },
               noFrame: false,
@@ -97,18 +99,18 @@ function makeLayout() {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function AvionicsLayoutPlugin(openmct: any) {
-  openmct.types.addType('caduceus.telemetry', {
+  openmct.types.addType(`${NAMESPACE}.telemetry`, {
     name: 'Caduceus Telemetry Point',
     description: 'A telemetry measurement from the Caduceus system',
     cssClass: 'icon-telemetry',
   })
 
   openmct.objects.addRoot(
-    { namespace: NAMESPACE, key: 'root' },
+    { namespace: AVIONICS_NAMESPACE, key: 'root' },
     openmct.priority.HIGH
   )
 
-  openmct.objects.addProvider(NAMESPACE, {
+  openmct.objects.addProvider(AVIONICS_NAMESPACE, {
     get(identifier: { namespace: string; key: string }) {
       if (identifier.key === 'root') {
         return Promise.resolve({
@@ -117,10 +119,10 @@ export function AvionicsLayoutPlugin(openmct: any) {
           type: 'folder',
           location: 'ROOT',
           composition: [
-            { namespace: NAMESPACE, key: LAYOUT_KEY },
+            { namespace: AVIONICS_NAMESPACE, key: LAYOUT_KEY },
             { namespace: NAMESPACE, key: VL_BATTERY_GPS },
             { namespace: NAMESPACE, key: VL_BATTERY_RECEIVED },
-            { namespace: NAMESPACE, key: DATA_SOURCE_SWITCHER_KEY },
+            { namespace: AVIONICS_NAMESPACE, key: DATA_SOURCE_SWITCHER_KEY },
           ],
         })
       }
@@ -137,8 +139,8 @@ export function AvionicsLayoutPlugin(openmct: any) {
         return Promise.resolve({
           identifier,
           name: 'Data Source Switcher',
-          type: 'caduceus.data-source-switcher',
-          location: `${NAMESPACE}:${LAYOUT_KEY}`,
+          type: `${NAMESPACE}.data-source-switcher`,
+          location: `${AVIONICS_NAMESPACE}:${LAYOUT_KEY}`,
         })
       }
 
