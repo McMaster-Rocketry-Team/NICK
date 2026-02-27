@@ -34,8 +34,6 @@ jobs:
 
       - name: Build
         run: yarn build
-        env:
-          BASE_PATH: /caduceus/
 
       - uses: actions/upload-pages-artifact@v3
         with:
