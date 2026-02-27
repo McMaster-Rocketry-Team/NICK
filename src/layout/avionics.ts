@@ -1,36 +1,8 @@
-import type { TelemetrySeries } from '../db/backend'
-
-const NAMESPACE = 'avionics'
-
-function makeTelemetryObject(series: TelemetrySeries) {
-  const isGps = series === 'gps'
-  return {
-    identifier: { namespace: NAMESPACE, key: `vl_battery_v_${series}` },
-    name: isGps ? 'VL Battery Voltage (GPS)' : 'VL Battery Voltage (Received)',
-    type: 'caduceus.telemetry',
-    location: `${NAMESPACE}:root`,
-    telemetry: {
-      values: [
-        {
-          key: 'value',
-          name: 'Voltage',
-          unit: 'V',
-          format: 'float',
-          min: -1,
-          max: 1,
-          hints: { range: 1 },
-        },
-        {
-          key: 'utc',
-          source: isGps ? 'timestamp' : 'receivedTimestamp',
-          name: isGps ? 'GPS Timestamp' : 'Received Timestamp',
-          format: 'utc',
-          hints: { domain: 1 },
-        },
-      ],
-    },
-  }
-}
+import {
+  VL_BATTERY_GPS,
+  VL_BATTERY_RECEIVED,
+} from '../sources/fake-data-generator'
+import { NAMESPACE } from '../plugins/data-provider'
 
 const OVERLAY_PLOT_KEY = 'vl_battery_overlay'
 const LAYOUT_KEY = 'layout'
@@ -49,13 +21,13 @@ function makeOverlayPlot() {
     type: 'telemetry.plot.overlay',
     location: `${NAMESPACE}:${LAYOUT_KEY}`,
     composition: [
-      { namespace: NAMESPACE, key: 'vl_battery_v_received' },
-      { namespace: NAMESPACE, key: 'vl_battery_v_gps' },
+      { namespace: NAMESPACE, key: VL_BATTERY_RECEIVED },
+      { namespace: NAMESPACE, key: VL_BATTERY_GPS },
     ],
     configuration: {
       series: [
-        { identifier: { namespace: NAMESPACE, key: 'vl_battery_v_received' } },
-        { identifier: { namespace: NAMESPACE, key: 'vl_battery_v_gps' } },
+        { identifier: { namespace: NAMESPACE, key: VL_BATTERY_RECEIVED } },
+        { identifier: { namespace: NAMESPACE, key: VL_BATTERY_GPS } },
       ],
       yAxis: {
         autoscale: false,
@@ -95,7 +67,10 @@ function makeLayout() {
           frames: [
             {
               id: FRAME_PLOT_ID,
-              domainObjectIdentifier: { namespace: NAMESPACE, key: OVERLAY_PLOT_KEY },
+              domainObjectIdentifier: {
+                namespace: NAMESPACE,
+                key: OVERLAY_PLOT_KEY,
+              },
               noFrame: false,
             },
           ],
@@ -130,7 +105,7 @@ export function AvionicsLayoutPlugin(openmct: any) {
 
   openmct.objects.addRoot(
     { namespace: NAMESPACE, key: 'root' },
-    openmct.priority.HIGH,
+    openmct.priority.HIGH
   )
 
   openmct.objects.addProvider(NAMESPACE, {
@@ -143,8 +118,8 @@ export function AvionicsLayoutPlugin(openmct: any) {
           location: 'ROOT',
           composition: [
             { namespace: NAMESPACE, key: LAYOUT_KEY },
-            { namespace: NAMESPACE, key: 'vl_battery_v_gps' },
-            { namespace: NAMESPACE, key: 'vl_battery_v_received' },
+            { namespace: NAMESPACE, key: VL_BATTERY_GPS },
+            { namespace: NAMESPACE, key: VL_BATTERY_RECEIVED },
             { namespace: NAMESPACE, key: DATA_SOURCE_SWITCHER_KEY },
           ],
         })
@@ -156,14 +131,6 @@ export function AvionicsLayoutPlugin(openmct: any) {
 
       if (identifier.key === OVERLAY_PLOT_KEY) {
         return Promise.resolve(makeOverlayPlot())
-      }
-
-      if (identifier.key === 'vl_battery_v_gps') {
-        return Promise.resolve(makeTelemetryObject('gps'))
-      }
-
-      if (identifier.key === 'vl_battery_v_received') {
-        return Promise.resolve(makeTelemetryObject('received'))
       }
 
       if (identifier.key === DATA_SOURCE_SWITCHER_KEY) {

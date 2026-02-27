@@ -1,8 +1,8 @@
 import * as duckdb from '@duckdb/duckdb-wasm'
 import type { Table } from 'apache-arrow'
-import type { TelemetryBackend, TelemetryDatum, TelemetrySeries, QueryOptions } from './backend'
+import type { TelemetryBackend, TelemetryDatum, QueryOptions } from './backend'
 import {
-  setupSchema,
+  ensureTable,
   insertTelemetrySQL,
   getAllDataSQL,
   queryTelemetrySQL,
@@ -17,14 +17,11 @@ function arrowToRows(result: Table): Row[] {
   const rows: Row[] = []
   for (const batch of result.batches) {
     const timestamps = batch.getChildAt(0)
-    const receivedTimestamps = batch.getChildAt(1)
-    const values = batch.getChildAt(2)
-    if (!timestamps || !receivedTimestamps || !values) continue
+    const values = batch.getChildAt(1)
+    if (!timestamps || !values) continue
     for (let i = 0; i < batch.numRows; i++) {
-      const ts = timestamps.get(i)
       rows.push({
-        timestamp: ts === null ? null : BigInt(ts),
-        received_timestamp: BigInt(receivedTimestamps.get(i)),
+        timestamp: BigInt(timestamps.get(i)),
         value: Number(values.get(i)),
       })
     }
@@ -39,7 +36,7 @@ async function initDuckDB(): Promise<duckdb.AsyncDuckDBConnection> {
   const workerUrl = URL.createObjectURL(
     new Blob([`importScripts("${bundle.mainWorker!}");`], {
       type: 'text/javascript',
-    }),
+    })
   )
 
   const worker = new Worker(workerUrl)
@@ -54,8 +51,6 @@ async function initDuckDB(): Promise<duckdb.AsyncDuckDBConnection> {
   })
 
   const conn = await db.connect()
-  const queryFn = (sql: string) => conn.query(sql).then(arrowToRows)
-  await setupSchema(queryFn)
 
   connInstance = conn
 
@@ -75,10 +70,12 @@ export async function getConnection(): Promise<duckdb.AsyncDuckDBConnection> {
   return initPromise
 }
 
-export async function getAllData(afterReceivedTimestamp?: number): Promise<TelemetryDatum[]> {
+export async function getAllData(
+  afterTimestamp?: number
+): Promise<TelemetryDatum[]> {
   const conn = await getConnection()
   const queryFn = (sql: string) => conn.query(sql).then(arrowToRows)
-  return getAllDataSQL(queryFn, afterReceivedTimestamp)
+  return getAllDataSQL(queryFn, afterTimestamp)
 }
 
 export class DuckDBBackend implements TelemetryBackend {
@@ -87,25 +84,24 @@ export class DuckDBBackend implements TelemetryBackend {
   }
 
   async insertTelemetry(
-    table: string,
-    timestamp: number | null,
-    receivedTimestamp: number,
-    value: number,
+    key: string,
+    timestampMs: number,
+    value: number
   ): Promise<void> {
     const conn = await getConnection()
     const queryFn = (sql: string) => conn.query(sql).then(arrowToRows)
-    await insertTelemetrySQL(queryFn, table, timestamp, receivedTimestamp, value)
+    await ensureTable(queryFn, key)
+    await insertTelemetrySQL(queryFn, key, timestampMs, value)
   }
 
   async queryTelemetry(
-    table: string,
-    series: TelemetrySeries,
+    key: string,
     start: number,
     end: number,
-    options?: QueryOptions,
+    options?: QueryOptions
   ): Promise<TelemetryDatum[]> {
     const conn = await getConnection()
     const queryFn = (sql: string) => conn.query(sql).then(arrowToRows)
-    return queryTelemetrySQL(queryFn, table, series, start, end, options)
+    return queryTelemetrySQL(queryFn, key, start, end, options)
   }
 }

@@ -1,10 +1,7 @@
 export interface TelemetryDatum {
-  timestamp: number | null
-  receivedTimestamp: number
+  timestampMs: number
   value: number
 }
-
-export type TelemetrySeries = 'gps' | 'received'
 
 export interface QueryOptions {
   strategy?: 'minmax' | 'latest'
@@ -13,17 +10,25 @@ export interface QueryOptions {
 
 export interface TelemetryBackend {
   init(): Promise<void>
+  /**
+   * @param key          datum key (used as table/measurement name)
+   * @param timestampMs  timestamp in ms
+   * @param value        numeric value
+   */
   insertTelemetry(
-    table: string,
-    timestamp: number | null,
-    receivedTimestamp: number,
-    value: number,
+    key: string,
+    timestampMs: number,
+    value: number
   ): Promise<void>
+  /**
+   * @param key    datum key
+   * @param start  start of time range (timestampMs), inclusive
+   * @param end    end of time range (timestampMs), inclusive
+   */
   queryTelemetry(
-    table: string,
-    series: TelemetrySeries,
+    key: string,
     start: number,
     end: number,
-    options?: QueryOptions,
+    options?: QueryOptions
   ): Promise<TelemetryDatum[]>
 }

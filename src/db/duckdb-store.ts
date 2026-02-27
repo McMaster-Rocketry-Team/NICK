@@ -2,36 +2,34 @@
 // Operates on a generic query function so it can be used with both the
 // browser WASM backend and the Node native backend in tests.
 
-import type { TelemetryDatum, TelemetrySeries, QueryOptions } from './backend'
+import type { TelemetryDatum, QueryOptions } from './backend'
 
-export type Row = { timestamp: bigint | null; received_timestamp: bigint; value: number }
+export type Row = {
+  timestamp: bigint
+  value: number
+}
 
 export type QueryFn = (sql: string) => Promise<Row[]>
 
-export async function setupSchema(query: QueryFn): Promise<void> {
-  // Migrate: drop if schema is outdated (missing received_timestamp column)
-  const cols = (await query(
-    `SELECT column_name FROM information_schema.columns WHERE table_name = 'vl_battery_v'`,
-  )) as unknown as { column_name: string }[]
-  const colNames = cols.map((r) => r.column_name)
-  if (colNames.length > 0 && !colNames.includes('received_timestamp')) {
-    await query(`DROP TABLE vl_battery_v`)
-  }
-
+/**
+ * Creates the table for `key` if it does not already exist.
+ * Called lazily before every insert so new keys are handled automatically.
+ */
+export async function ensureTable(
+  query: QueryFn,
+  tableName: string
+): Promise<void> {
   await query(`
-    CREATE TABLE IF NOT EXISTS vl_battery_v (
-      timestamp BIGINT,
-      received_timestamp BIGINT NOT NULL,
+    CREATE TABLE IF NOT EXISTS "${tableName}" (
+      timestamp BIGINT NOT NULL,
       value DOUBLE NOT NULL
     )
   `)
 }
 
 function toTelemetryDatum(row: Row): TelemetryDatum {
-  const ts = row.timestamp
   return {
-    timestamp: ts === null ? null : Number(ts),
-    receivedTimestamp: Number(row.received_timestamp),
+    timestampMs: Number(row.timestamp),
     value: Number(row.value),
   }
 }
@@ -39,24 +37,20 @@ function toTelemetryDatum(row: Row): TelemetryDatum {
 export async function insertTelemetrySQL(
   query: QueryFn,
   table: string,
-  timestamp: number | null,
-  receivedTimestamp: number,
-  value: number,
+  timestampMs: number,
+  value: number
 ): Promise<void> {
-  const tsValue = timestamp === null ? 'NULL' : timestamp
-  await query(`INSERT INTO ${table} VALUES (${tsValue}, ${receivedTimestamp}, ${value})`)
+  await query(`INSERT INTO "${table}" VALUES (${timestampMs}, ${value})`)
 }
 
 export async function getAllDataSQL(
   query: QueryFn,
-  afterReceivedTimestamp?: number,
+  afterTimestamp?: number
 ): Promise<TelemetryDatum[]> {
   const filter =
-    afterReceivedTimestamp !== undefined
-      ? `WHERE received_timestamp > ${afterReceivedTimestamp}`
-      : ''
+    afterTimestamp !== undefined ? `WHERE timestamp > ${afterTimestamp}` : ''
   const rows = await query(
-    `SELECT timestamp, received_timestamp, value FROM vl_battery_v ${filter} ORDER BY received_timestamp ASC`,
+    `SELECT timestamp, value FROM vl_battery_v ${filter} ORDER BY timestamp ASC`
   )
   return rows.map(toTelemetryDatum)
 }
@@ -64,23 +58,19 @@ export async function getAllDataSQL(
 export async function queryTelemetrySQL(
   query: QueryFn,
   table: string,
-  series: TelemetrySeries,
   start: number,
   end: number,
-  options?: QueryOptions,
+  options?: QueryOptions
 ): Promise<TelemetryDatum[]> {
   const strategy = options?.strategy
   const size = options?.size
 
-  const domainCol = series === 'gps' ? 'timestamp' : 'received_timestamp'
-  const seriesFilter = series === 'gps' ? 'AND timestamp IS NOT NULL' : 'AND timestamp IS NULL'
-
   if (strategy === 'latest' && size) {
     const rows = await query(
-      `SELECT timestamp, received_timestamp, value FROM ${table}
-       WHERE ${domainCol} >= ${start} AND ${domainCol} <= ${end} ${seriesFilter}
-       ORDER BY ${domainCol} DESC
-       LIMIT ${size}`,
+      `SELECT timestamp, value FROM "${table}"
+       WHERE timestamp >= ${start} AND timestamp <= ${end}
+       ORDER BY timestamp DESC
+       LIMIT ${size}`
     )
     const result = rows.map(toTelemetryDatum)
     result.reverse()
@@ -91,37 +81,35 @@ export async function queryTelemetrySQL(
     const buckets = Math.max(1, size)
     const rows = await query(
       `WITH bucketed AS (
-        SELECT timestamp, received_timestamp, value,
-          NTILE(${buckets}) OVER (ORDER BY ${domainCol}) AS bucket
-        FROM ${table}
-        WHERE ${domainCol} >= ${start} AND ${domainCol} <= ${end} ${seriesFilter}
+        SELECT timestamp, value,
+          NTILE(${buckets}) OVER (ORDER BY timestamp) AS bucket
+        FROM "${table}"
+        WHERE timestamp >= ${start} AND timestamp <= ${end}
       ),
       extremes AS (
         SELECT
           arg_min(timestamp, value) AS min_ts,
-          arg_min(received_timestamp, value) AS min_rts,
           MIN(value) AS min_val,
           arg_max(timestamp, value) AS max_ts,
-          arg_max(received_timestamp, value) AS max_rts,
           MAX(value) AS max_val
         FROM bucketed
         GROUP BY bucket
       )
-      SELECT timestamp, received_timestamp, value FROM (
-        SELECT min_ts AS timestamp, min_rts AS received_timestamp, min_val AS value FROM extremes
+      SELECT timestamp, value FROM (
+        SELECT min_ts AS timestamp, min_val AS value FROM extremes
         UNION ALL
-        SELECT max_ts AS timestamp, max_rts AS received_timestamp, max_val AS value FROM extremes
-        WHERE max_ts != min_ts OR max_rts != min_rts
+        SELECT max_ts AS timestamp, max_val AS value FROM extremes
+        WHERE max_ts != min_ts
       )
-      ORDER BY ${domainCol} ASC`,
+      ORDER BY timestamp ASC`
     )
     return rows.map(toTelemetryDatum)
   }
 
   const rows = await query(
-    `SELECT timestamp, received_timestamp, value FROM ${table}
-     WHERE ${domainCol} >= ${start} AND ${domainCol} <= ${end} ${seriesFilter}
-     ORDER BY ${domainCol} ASC`,
+    `SELECT timestamp, value FROM "${table}"
+     WHERE timestamp >= ${start} AND timestamp <= ${end}
+     ORDER BY timestamp ASC`
   )
   return rows.map(toTelemetryDatum)
 }

@@ -23,10 +23,12 @@ The full documentation for openmct is located at @OPENMCT.md
 **IMPORTANT**: Before you consider a task complete, **always**: (unless the task is trivial)
 
 1. **Simplify**: Re-examine all the files you just edited, think about all the related existing logic.
-  - Collapse single-use abstractions
-  - Align types with actual usage
-  - Aggressively factor out duplicate logic between new code and existing code
-  - Any other simplification you see appropriate
+
+- Collapse single-use abstractions
+- Align types with actual usage
+- Aggressively factor out duplicate logic between new code and existing code
+- Any other simplification you see appropriate
+
 2. **Lint**: Run `yarn tsc --noEmit` and ensure no type errors.
 3. **Test**: Run `yarn test` and ensure all tests pass
 4. **Format**: Run `yarn format` at repo root.

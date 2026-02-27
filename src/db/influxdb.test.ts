@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { GenericContainer, type StartedTestContainer, Wait } from 'testcontainers'
+import {
+  GenericContainer,
+  type StartedTestContainer,
+  Wait,
+} from 'testcontainers'
 import { DuckDBInstance } from '@duckdb/node-api'
 import { InfluxDBBackend, type InfluxDBConfig } from './influxdb'
 import {
-  setupSchema,
+  ensureTable,
   insertTelemetrySQL,
   getAllDataSQL,
   type Row,
@@ -16,6 +20,7 @@ function makeQueryFn(conn: Awaited<ReturnType<DuckDBInstance['connect']>>) {
   }
 }
 
+const KEY = 'vl_battery_v'
 const ORG = 'testorg'
 const BUCKET = 'testbucket'
 const TOKEN = 'testtoken'
@@ -59,15 +64,15 @@ afterAll(async () => {
 // Helper: wait for InfluxDB to make a just-written point queryable.
 // InfluxDB has a small ingestion delay before data is visible to queries.
 async function waitForData(
-  series: 'gps' | 'received',
+  key: string,
   start: number,
   end: number,
   expectedCount: number,
   retries = 10,
-  delayMs = 300,
+  delayMs = 300
 ): Promise<void> {
   for (let i = 0; i < retries; i++) {
-    const data = await backend.queryTelemetry('vl_battery_v', series, start, end)
+    const data = await backend.queryTelemetry(key, start, end)
     if (data.length >= expectedCount) return
     await new Promise((r) => setTimeout(r, delayMs))
   }
@@ -77,11 +82,11 @@ async function waitForData(
 // This test writes one point and dumps the raw Flux CSV so we can see exactly
 // what InfluxDB returns — useful for debugging the parser.
 describe('raw CSV inspection', () => {
-  it('shows raw CSV from a pivot query', async () => {
+  it('shows raw CSV from a query', async () => {
     const ts = Date.now()
-    await backend.insertTelemetry('vl_battery_v', ts, ts + 1, 0.5)
+    await backend.insertTelemetry(KEY, ts, 0.5)
 
-    await waitForData('gps', ts - 1000, ts + 2000, 1)
+    await waitForData(KEY, ts - 1000, ts + 2000, 1)
 
     const startRfc = new Date(ts - 1000).toISOString()
     const endRfc = new Date(ts + 2000).toISOString()
@@ -89,9 +94,8 @@ describe('raw CSV inspection', () => {
     const flux = `
 from(bucket: "${BUCKET}")
   |> range(start: ${startRfc}, stop: ${endRfc})
-  |> filter(fn: (r) => r._measurement == "vl_battery_v" and r.series == "gps")
-  |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
-  |> keep(columns: ["_time", "value", "alt_ts"])`
+  |> filter(fn: (r) => r._measurement == "${KEY}")
+  |> filter(fn: (r) => r._field == "value")`
 
     const resp = await fetch(`${config.url}/api/v2/query?org=${ORG}`, {
       method: 'POST',
@@ -104,58 +108,26 @@ from(bucket: "${BUCKET}")
     })
 
     const csv = await resp.text()
-    console.log('=== RAW PIVOT CSV ===\n', csv)
+    console.log('=== RAW CSV ===\n', csv)
     expect(resp.ok).toBe(true)
   })
 })
 
-// ── GPS series roundtrip ──────────────────────────────────────────────────────
-describe('GPS series roundtrip', () => {
-  it('writes and reads back a GPS point', async () => {
-    const gpsTsBase = Date.now() + 10_000
-    const receivedTs = gpsTsBase + 50
+// ── Point roundtrip ──────────────────────────────────────────────────────────
+describe('point roundtrip', () => {
+  it('writes and reads back a point', async () => {
+    const ts = Date.now() + 10_000
     const value = 0.123
 
-    await backend.insertTelemetry('vl_battery_v', gpsTsBase, receivedTs, value)
-    await waitForData('gps', gpsTsBase - 1000, gpsTsBase + 2000, 1)
+    await backend.insertTelemetry(KEY, ts, value)
+    await waitForData(KEY, ts - 1000, ts + 2000, 1)
 
-    const results = await backend.queryTelemetry(
-      'vl_battery_v',
-      'gps',
-      gpsTsBase - 1000,
-      gpsTsBase + 2000,
-    )
+    const results = await backend.queryTelemetry(KEY, ts - 1000, ts + 2000)
 
     expect(results.length).toBeGreaterThanOrEqual(1)
-    const point = results.find((d) => Math.abs((d.timestamp ?? 0) - gpsTsBase) < 5)
+    const point = results.find((d) => Math.abs(d.timestampMs - ts) < 5)
     expect(point).toBeDefined()
-    expect(point!.timestamp).toBeCloseTo(gpsTsBase, -1)
-    expect(point!.receivedTimestamp).toBeCloseTo(receivedTs, -1)
-    expect(point!.value).toBeCloseTo(value, 5)
-  })
-})
-
-// ── Received series roundtrip ─────────────────────────────────────────────────
-describe('received series roundtrip', () => {
-  it('writes and reads back a no-GPS point (timestamp === null)', async () => {
-    const receivedTs = Date.now() + 20_000
-    const value = -0.456
-
-    await backend.insertTelemetry('vl_battery_v', null, receivedTs, value)
-    await waitForData('received', receivedTs - 1000, receivedTs + 2000, 1)
-
-    const results = await backend.queryTelemetry(
-      'vl_battery_v',
-      'received',
-      receivedTs - 1000,
-      receivedTs + 2000,
-    )
-
-    expect(results.length).toBeGreaterThanOrEqual(1)
-    const point = results.find((d) => Math.abs(d.receivedTimestamp - receivedTs) < 5)
-    expect(point).toBeDefined()
-    expect(point!.timestamp).toBeNull()
-    expect(point!.receivedTimestamp).toBeCloseTo(receivedTs, -1)
+    expect(point!.timestampMs).toBeCloseTo(ts, -1)
     expect(point!.value).toBeCloseTo(value, 5)
   })
 })
@@ -165,20 +137,21 @@ describe('writeBatch', () => {
   it('batch-writes multiple points and reads them all back in order', async () => {
     const base = Date.now() + 30_000
     const data = Array.from({ length: 5 }, (_, i) => ({
-      timestamp: base + i * 100,
-      receivedTimestamp: base + i * 100 + 10,
+      timestampMs: base + i * 100,
       value: i * 0.1,
     }))
 
-    await backend.writeBatch(data)
-    await waitForData('gps', base - 1000, base + 2000, 5)
+    await backend.writeBatch(KEY, data)
+    await waitForData(KEY, base - 1000, base + 2000, 5)
 
-    const results = await backend.queryTelemetry('vl_battery_v', 'gps', base - 1000, base + 2000)
+    const results = await backend.queryTelemetry(KEY, base - 1000, base + 2000)
 
     expect(results.length).toBeGreaterThanOrEqual(5)
-    // Results should be in ascending timestamp order
+    // Results should be in ascending timestampMs order
     for (let i = 1; i < results.length; i++) {
-      expect(results[i].timestamp!).toBeGreaterThanOrEqual(results[i - 1].timestamp!)
+      expect(results[i].timestampMs).toBeGreaterThanOrEqual(
+        results[i - 1].timestampMs
+      )
     }
   })
 })
@@ -188,41 +161,49 @@ describe('latest strategy', () => {
   it('returns only the most recent point when size=1', async () => {
     const base = Date.now() + 40_000
     const data = Array.from({ length: 3 }, (_, i) => ({
-      timestamp: base + i * 200,
-      receivedTimestamp: base + i * 200 + 5,
+      timestampMs: base + i * 200,
       value: i * 0.2,
     }))
 
-    await backend.writeBatch(data)
-    await waitForData('gps', base - 1000, base + 2000, 3)
+    await backend.writeBatch(KEY, data)
+    await waitForData(KEY, base - 1000, base + 2000, 3)
 
-    const results = await backend.queryTelemetry('vl_battery_v', 'gps', base - 1000, base + 2000, {
-      strategy: 'latest',
-      size: 1,
-    })
+    const results = await backend.queryTelemetry(
+      KEY,
+      base - 1000,
+      base + 2000,
+      {
+        strategy: 'latest',
+        size: 1,
+      }
+    )
 
     expect(results.length).toBe(1)
     expect(results[0].value).toBeCloseTo(0.4, 5)
   })
 })
 
-// ── minmax/mean strategy ──────────────────────────────────────────────────────
+// ── minmax strategy ──────────────────────────────────────────────────────────
 describe('minmax strategy', () => {
   it('returns aggregated (non-empty, reasonable) results', async () => {
     const base = Date.now() + 50_000
     const data = Array.from({ length: 20 }, (_, i) => ({
-      timestamp: base + i * 50,
-      receivedTimestamp: base + i * 50 + 5,
+      timestampMs: base + i * 50,
       value: Math.sin((2 * Math.PI * i) / 20),
     }))
 
-    await backend.writeBatch(data)
-    await waitForData('gps', base - 1000, base + 2000, 20)
+    await backend.writeBatch(KEY, data)
+    await waitForData(KEY, base - 1000, base + 2000, 20)
 
-    const results = await backend.queryTelemetry('vl_battery_v', 'gps', base - 1000, base + 2000, {
-      strategy: 'minmax',
-      size: 10,
-    })
+    const results = await backend.queryTelemetry(
+      KEY,
+      base - 1000,
+      base + 2000,
+      {
+        strategy: 'minmax',
+        size: 10,
+      }
+    )
 
     expect(results.length).toBeGreaterThan(0)
     for (const r of results) {
@@ -238,33 +219,32 @@ describe('minmax sparse data', () => {
     const base = Date.now() + 60_000
     // 5 points but request 100 buckets — should return 5 values
     const source = Array.from({ length: 5 }, (_, i) => ({
-      timestamp: base + i * 1000,
-      receivedTimestamp: base + i * 1000 + 5,
+      timestampMs: base + i * 1000,
       value: i * 0.2,
     }))
 
-    await backend.writeBatch(source)
-    await waitForData('gps', base - 1000, base + 10_000, 5)
+    await backend.writeBatch(KEY, source)
+    await waitForData(KEY, base - 1000, base + 10_000, 5)
 
-    const data = await backend.queryTelemetry('vl_battery_v', 'gps', base - 1000, base + 10_000, {
+    const data = await backend.queryTelemetry(KEY, base - 1000, base + 10_000, {
       strategy: 'minmax',
       size: 100,
     })
 
     expect(data).toHaveLength(5)
-    const sorted = [...data].sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
+    const sorted = [...data].sort((a, b) => a.timestampMs - b.timestampMs)
     for (let i = 0; i < 5; i++) {
-      expect(sorted[i].timestamp).toBe(source[i].timestamp)
+      expect(sorted[i].timestampMs).toBeCloseTo(source[i].timestampMs, -1)
       expect(sorted[i].value).toBeCloseTo(source[i].value, 5)
     }
   })
 
   it('returns exactly 1 point when only 1 data point exists in range', async () => {
     const base = Date.now() + 70_000
-    await backend.insertTelemetry('vl_battery_v', base + 500, base + 510, 0.42)
-    await waitForData('gps', base, base + 5000, 1)
+    await backend.insertTelemetry(KEY, base + 500, 0.42)
+    await waitForData(KEY, base, base + 5000, 1)
 
-    const data = await backend.queryTelemetry('vl_battery_v', 'gps', base, base + 5000, {
+    const data = await backend.queryTelemetry(KEY, base, base + 5000, {
       strategy: 'minmax',
       size: 50,
     })
@@ -277,15 +257,14 @@ describe('minmax sparse data', () => {
     const base = Date.now() + 80_000
     // 200 points with varying values, request size=10 → up to 20 results
     const source = Array.from({ length: 200 }, (_, i) => ({
-      timestamp: base + i * 10,
-      receivedTimestamp: base + i * 10 + 5,
+      timestampMs: base + i * 10,
       value: Math.sin((2 * Math.PI * i) / 200),
     }))
 
-    await backend.writeBatch(source)
-    await waitForData('gps', base - 1000, base + 3000, 200)
+    await backend.writeBatch(KEY, source)
+    await waitForData(KEY, base - 1000, base + 3000, 200)
 
-    const data = await backend.queryTelemetry('vl_battery_v', 'gps', base - 1000, base + 3000, {
+    const data = await backend.queryTelemetry(KEY, base - 1000, base + 3000, {
       strategy: 'minmax',
       size: 10,
     })
@@ -303,7 +282,7 @@ describe('empty range', () => {
     const start = new Date('2000-01-01').getTime()
     const end = new Date('2000-01-02').getTime()
 
-    const results = await backend.queryTelemetry('vl_battery_v', 'gps', start, end)
+    const results = await backend.queryTelemetry(KEY, start, end)
     expect(results).toEqual([])
   })
 })
@@ -314,7 +293,6 @@ describe('empty range', () => {
 // then query InfluxDB and verify the values match the originals.
 describe('DuckDB → InfluxDB upload roundtrip', () => {
   it('values read from InfluxDB match values written from DuckDB', async () => {
-    const TABLE = 'vl_battery_v'
     const POINT_COUNT = 40
     const base = Date.now() + 100_000
 
@@ -322,16 +300,15 @@ describe('DuckDB → InfluxDB upload roundtrip', () => {
     const duckInstance = await DuckDBInstance.create(':memory:')
     const duckConn = await duckInstance.connect()
     const duckQuery = makeQueryFn(duckConn)
-    await setupSchema(duckQuery)
+    await ensureTable(duckQuery, KEY)
 
     const sourceData = Array.from({ length: POINT_COUNT }, (_, i) => ({
-      timestamp: base + i * 100,
-      receivedTimestamp: base + i * 100 + 7,
+      timestampMs: base + i * 100,
       value: Math.sin((2 * Math.PI * i) / POINT_COUNT),
     }))
 
     for (const d of sourceData) {
-      await insertTelemetrySQL(duckQuery, TABLE, d.timestamp, d.receivedTimestamp, d.value)
+      await insertTelemetrySQL(duckQuery, KEY, d.timestampMs, d.value)
     }
 
     // ── Step 2: read all data back from DuckDB ──
@@ -339,29 +316,34 @@ describe('DuckDB → InfluxDB upload roundtrip', () => {
     expect(duckData).toHaveLength(POINT_COUNT)
 
     // ── Step 3: upload to InfluxDB ──
-    await backend.writeBatch(duckData)
-    await waitForData('gps', base - 1000, base + POINT_COUNT * 100 + 1000, POINT_COUNT)
+    await backend.writeBatch(KEY, duckData)
+    await waitForData(
+      KEY,
+      base - 1000,
+      base + POINT_COUNT * 100 + 1000,
+      POINT_COUNT
+    )
 
     // ── Step 4: query InfluxDB and compare ──
     const influxData = await backend.queryTelemetry(
-      TABLE,
-      'gps',
+      KEY,
       base - 1000,
-      base + POINT_COUNT * 100 + 1000,
+      base + POINT_COUNT * 100 + 1000
     )
 
-    console.log(`DuckDB points: ${duckData.length}, InfluxDB points: ${influxData.length}`)
+    console.log(
+      `DuckDB points: ${duckData.length}, InfluxDB points: ${influxData.length}`
+    )
 
     expect(influxData.length).toBe(POINT_COUNT)
 
-    // Sort both by timestamp for comparison
-    const sorted = [...influxData].sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
+    // Sort both by timestampMs for comparison
+    const sorted = [...influxData].sort((a, b) => a.timestampMs - b.timestampMs)
 
     for (let i = 0; i < POINT_COUNT; i++) {
       const src = sourceData[i]
       const got = sorted[i]
-      expect(got.timestamp).toBe(src.timestamp)
-      expect(got.receivedTimestamp).toBe(src.receivedTimestamp)
+      expect(got.timestampMs).toBeCloseTo(src.timestampMs, -1)
       expect(got.value).toBeCloseTo(src.value, 6)
     }
 

@@ -22,12 +22,16 @@ function formatTimestamp(ts: number | null): string {
   return new Date(ts).toLocaleString()
 }
 
-async function testInfluxConfig(url: string, token: string, org: string): Promise<void> {
+async function testInfluxConfig(
+  url: string,
+  token: string,
+  org: string
+): Promise<void> {
   const resp = await fetch(
     `${url}/api/v2/buckets?org=${encodeURIComponent(org)}&limit=1`,
     {
       headers: { Authorization: `Token ${token}` },
-    },
+    }
   )
   if (!resp.ok) {
     const body = await resp.text().catch(() => '')
@@ -80,18 +84,29 @@ function buildUI(container: HTMLElement): void {
   const switchRow = document.createElement('div')
   switchRow.style.cssText = 'display: flex; gap: 6px; align-items: center;'
 
-  const duckdbBtn = makeBackendButton('DuckDB (Local)', 'duckdb', currentBackend)
-  const influxBtn = makeBackendButton('InfluxDB (Remote)', 'influxdb', currentBackend, async () => {
-    const cfg = loadInfluxConfig()
-    try {
-      await testInfluxConfig(cfg.url, cfg.token, cfg.org)
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err)
-      alert(`Cannot reach InfluxDB: ${reason}\n\nPlease open the ⚙ settings and verify your InfluxDB configuration.`)
-      return false
+  const duckdbBtn = makeBackendButton(
+    'DuckDB (Local)',
+    'duckdb',
+    currentBackend
+  )
+  const influxBtn = makeBackendButton(
+    'InfluxDB (Remote)',
+    'influxdb',
+    currentBackend,
+    async () => {
+      const cfg = loadInfluxConfig()
+      try {
+        await testInfluxConfig(cfg.url, cfg.token, cfg.org)
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err)
+        alert(
+          `Cannot reach InfluxDB: ${reason}\n\nPlease open the ⚙ settings and verify your InfluxDB configuration.`
+        )
+        return false
+      }
+      return true
     }
-    return true
-  })
+  )
 
   // ── Settings gear button (inline, after InfluxDB button) ─────────────────
   const gearBtn = document.createElement('button')
@@ -108,8 +123,12 @@ function buildUI(container: HTMLElement): void {
     border-radius: 3px;
     margin-left: 2px;
   `
-  gearBtn.addEventListener('mouseenter', () => { gearBtn.style.color = '#0066cc' })
-  gearBtn.addEventListener('mouseleave', () => { gearBtn.style.color = '#888' })
+  gearBtn.addEventListener('mouseenter', () => {
+    gearBtn.style.color = '#0066cc'
+  })
+  gearBtn.addEventListener('mouseleave', () => {
+    gearBtn.style.color = '#888'
+  })
 
   switchRow.appendChild(duckdbBtn)
   switchRow.appendChild(influxBtn)
@@ -170,12 +189,12 @@ function buildUI(container: HTMLElement): void {
       let uploaded = 0
       for (let i = 0; i < data.length; i += UPLOAD_BATCH_SIZE) {
         const batch = data.slice(i, i + UPLOAD_BATCH_SIZE)
-        await influx.writeBatch(batch)
+        await influx.writeBatch('vl_battery_v', batch)
         uploaded += batch.length
         uploadStatus.textContent = `Uploaded ${uploaded}/${data.length} rows…`
       }
 
-      const maxTs = data[data.length - 1].receivedTimestamp
+      const maxTs = data[data.length - 1].timestampMs
       localStorage.setItem(LAST_UPLOAD_KEY, String(maxTs))
       lastUploadLabel.textContent = `Last uploaded: ${formatTimestamp(maxTs)}`
       uploadStatus.textContent = `Done. ${data.length} rows uploaded.`
@@ -210,10 +229,31 @@ function buildUI(container: HTMLElement): void {
   configPanel.appendChild(configHeading)
 
   const config = loadInfluxConfig()
-  const urlField = makeField('URL', INFLUXDB_URL_KEY, config.url, 'http://localhost:8086')
-  const tokenField = makeField('API Token', INFLUXDB_TOKEN_KEY, config.token, 'your-token-here', true)
-  const orgField = makeField('Organization', INFLUXDB_ORG_KEY, config.org, 'rocketry')
-  const bucketField = makeField('Bucket', INFLUXDB_BUCKET_KEY, config.bucket, 'rocketry')
+  const urlField = makeField(
+    'URL',
+    INFLUXDB_URL_KEY,
+    config.url,
+    'http://localhost:8086'
+  )
+  const tokenField = makeField(
+    'API Token',
+    INFLUXDB_TOKEN_KEY,
+    config.token,
+    'your-token-here',
+    true
+  )
+  const orgField = makeField(
+    'Organization',
+    INFLUXDB_ORG_KEY,
+    config.org,
+    'rocketry'
+  )
+  const bucketField = makeField(
+    'Bucket',
+    INFLUXDB_BUCKET_KEY,
+    config.bucket,
+    'rocketry'
+  )
 
   configPanel.appendChild(urlField.row)
   configPanel.appendChild(tokenField.row)
@@ -221,7 +261,8 @@ function buildUI(container: HTMLElement): void {
   configPanel.appendChild(bucketField.row)
 
   const saveRow = document.createElement('div')
-  saveRow.style.cssText = 'display: flex; align-items: center; gap: 8px; margin-top: 8px;'
+  saveRow.style.cssText =
+    'display: flex; align-items: center; gap: 8px; margin-top: 8px;'
 
   const closeBtn = document.createElement('button')
   closeBtn.textContent = 'Close'
@@ -235,8 +276,14 @@ function buildUI(container: HTMLElement): void {
     color: #555;
     font-family: inherit;
   `
-  closeBtn.addEventListener('mouseenter', () => { closeBtn.style.borderColor = '#0066cc'; closeBtn.style.color = '#0066cc' })
-  closeBtn.addEventListener('mouseleave', () => { closeBtn.style.borderColor = '#ccc'; closeBtn.style.color = '#555' })
+  closeBtn.addEventListener('mouseenter', () => {
+    closeBtn.style.borderColor = '#0066cc'
+    closeBtn.style.color = '#0066cc'
+  })
+  closeBtn.addEventListener('mouseleave', () => {
+    closeBtn.style.borderColor = '#ccc'
+    closeBtn.style.color = '#555'
+  })
 
   const saveBtn = document.createElement('button')
   saveBtn.textContent = 'Save & Test'
@@ -263,7 +310,9 @@ function buildUI(container: HTMLElement): void {
       saveInfluxConfig(newConfig)
       saveStatus.style.color = '#2a7a2a'
       saveStatus.textContent = 'Connected & saved.'
-      setTimeout(() => { saveStatus.textContent = '' }, 3000)
+      setTimeout(() => {
+        saveStatus.textContent = ''
+      }, 3000)
     } catch (err) {
       saveStatus.style.color = '#cc0000'
       saveStatus.textContent = `Connection failed: ${err instanceof Error ? err.message : String(err)}`
@@ -297,7 +346,7 @@ function makeBackendButton(
   label: string,
   type: BackendType,
   active: BackendType,
-  guard?: () => Promise<boolean>,
+  guard?: () => Promise<boolean>
 ) {
   const btn = document.createElement('button')
   btn.textContent = label
@@ -334,10 +383,11 @@ function makeField(
   _storageKey: string,
   value: string,
   placeholder: string,
-  isPassword = false,
+  isPassword = false
 ) {
   const row = document.createElement('div')
-  row.style.cssText = 'display: flex; align-items: center; gap: 8px; margin-bottom: 7px;'
+  row.style.cssText =
+    'display: flex; align-items: center; gap: 8px; margin-bottom: 7px;'
 
   const lbl = document.createElement('label')
   lbl.textContent = label
@@ -364,8 +414,12 @@ function makeField(
     min-width: 0;
     font-family: inherit;
   `
-  input.addEventListener('focus', () => { input.style.borderColor = '#0066cc' })
-  input.addEventListener('blur', () => { input.style.borderColor = '#ccc' })
+  input.addEventListener('focus', () => {
+    input.style.borderColor = '#0066cc'
+  })
+  input.addEventListener('blur', () => {
+    input.style.borderColor = '#ccc'
+  })
 
   row.appendChild(lbl)
   row.appendChild(input)

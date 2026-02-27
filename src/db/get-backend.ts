@@ -18,7 +18,8 @@ export async function getBackend(): Promise<TelemetryBackend> {
   if (backendInstance) return backendInstance
 
   const type = getBackendType()
-  const instance = type === 'influxdb' ? new InfluxDBBackend() : new DuckDBBackend()
+  const instance =
+    type === 'influxdb' ? new InfluxDBBackend() : new DuckDBBackend()
 
   await instance.init()
   backendInstance = instance
