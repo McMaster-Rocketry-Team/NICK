@@ -62,6 +62,7 @@ export async function queryTelemetrySQL(
   end: number,
   options?: QueryOptions
 ): Promise<TelemetryDatum[]> {
+  await ensureTable(query, table)
   const strategy = options?.strategy
   const size = options?.size
 

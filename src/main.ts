@@ -1,5 +1,6 @@
 import { registerSW } from 'virtual:pwa-register'
 import openmct from 'openmct'
+import '../node_modules/openmct/dist/snowTheme.css'
 
 const updateSW = registerSW({
   immediate: true,
