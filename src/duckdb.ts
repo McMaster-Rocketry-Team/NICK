@@ -66,6 +66,10 @@ export async function insertTelemetry(
   )
 }
 
+// If two consecutive points are further apart than this, insert a NaN gap
+// marker so the plot line breaks instead of drawing a long diagonal.
+const GAP_THRESHOLD_MS = 200
+
 export async function queryTelemetry(
   table: string,
   start: number,
@@ -78,17 +82,37 @@ export async function queryTelemetry(
      ORDER BY timestamp ASC`,
   )
 
-  const datums: TelemetryDatum[] = []
+  const raw: TelemetryDatum[] = []
   for (const batch of result.batches) {
     const timestamps = batch.getChildAt(0)
     const values = batch.getChildAt(1)
     if (!timestamps || !values) continue
     for (let i = 0; i < batch.numRows; i++) {
-      datums.push({
+      raw.push({
         timestamp: Number(timestamps.get(i)),
         value: Number(values.get(i)),
       })
     }
   }
+
+  const datums: TelemetryDatum[] = []
+
+  const firstTs = raw.length > 0 ? raw[0].timestamp : undefined
+  if (firstTs !== undefined && firstTs - start > GAP_THRESHOLD_MS) {
+    datums.push({ timestamp: start, value: NaN })
+  }
+
+  for (let i = 0; i < raw.length; i++) {
+    if (i > 0 && raw[i].timestamp - raw[i - 1].timestamp > GAP_THRESHOLD_MS) {
+      datums.push({ timestamp: raw[i - 1].timestamp + 1, value: NaN })
+    }
+    datums.push(raw[i])
+  }
+
+  const lastTs = raw.length > 0 ? raw[raw.length - 1].timestamp : undefined
+  if (lastTs !== undefined && end - lastTs > GAP_THRESHOLD_MS) {
+    datums.push({ timestamp: lastTs + 1, value: NaN })
+  }
+
   return datums
 }
