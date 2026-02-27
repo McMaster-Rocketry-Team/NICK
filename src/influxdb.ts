@@ -49,39 +49,34 @@ function splitCSVLine(line: string): string[] {
 }
 
 // Parse InfluxDB annotated CSV response into TelemetryDatum[].
-// InfluxDB returns multiple logical tables separated by blank lines, each with
-// their own annotation rows (#group, #datatype, #default) and a header row.
-// We reset headers on every header row so multi-table responses parse correctly.
-// After pivot, the CSV has columns named "value" and "alt_ts" (not "_value").
+// InfluxDB annotated CSV format (confirmed from real responses):
+//   - Annotation rows start with '#' (skipped)
+//   - Both header and data rows have an empty string as cols[0]
+//   - Header row is distinguished by containing "_time" as one of its column values
+//   - Data rows have an ISO timestamp in the _time column position
+//   - Blank lines separate logical tables (reset headers)
+// After pivot, field columns are named "value" and "alt_ts" (not "_value").
 function parseFluxCSV(csv: string, series: TelemetrySeries): TelemetryDatum[] {
   const lines = csv.split('\n')
   const results: TelemetryDatum[] = []
-
   let headers: string[] = []
-  let expectHeader = true // true after a blank line or at start
 
   for (const line of lines) {
     const trimmed = line.trim()
 
-    // Blank line = table separator; next non-annotation line will be a header
     if (!trimmed) {
-      expectHeader = true
       headers = []
       continue
     }
 
-    // Annotation rows start with '#'
     if (trimmed.startsWith('#')) continue
 
     const cols = splitCSVLine(trimmed)
 
-    // Header row: first column is empty string (the "annotation" column placeholder)
-    if (expectHeader || cols[0] === '') {
-      if (cols[0] === '') {
-        headers = cols
-        expectHeader = false
-        continue
-      }
+    // Header row: first col is empty AND the row contains "_time" as a column name
+    if (cols[0] === '' && cols.includes('_time')) {
+      headers = cols
+      continue
     }
 
     if (headers.length === 0) continue
@@ -125,8 +120,8 @@ function parseFluxCSV(csv: string, series: TelemetrySeries): TelemetryDatum[] {
 export class InfluxDBBackend implements TelemetryBackend {
   private config: InfluxDBConfig
 
-  constructor() {
-    this.config = loadInfluxConfig()
+  constructor(config?: InfluxDBConfig) {
+    this.config = config ?? loadInfluxConfig()
   }
 
   async init(): Promise<void> {
@@ -292,13 +287,11 @@ from(bucket: "${bucket}")
     const lines = csv.split('\n')
     const results: TelemetryDatum[] = []
     let headers: string[] = []
-    let expectHeader = true
 
     for (const line of lines) {
       const trimmed = line.trim()
 
       if (!trimmed) {
-        expectHeader = true
         headers = []
         continue
       }
@@ -307,12 +300,9 @@ from(bucket: "${bucket}")
 
       const cols = splitCSVLine(trimmed)
 
-      if (expectHeader || cols[0] === '') {
-        if (cols[0] === '') {
-          headers = cols
-          expectHeader = false
-          continue
-        }
+      if (cols[0] === '' && cols.includes('_time')) {
+        headers = cols
+        continue
       }
 
       if (headers.length === 0) continue
