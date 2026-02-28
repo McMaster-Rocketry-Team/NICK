@@ -20,23 +20,25 @@ Note: `yarn install` automatically runs `npm install` inside `vendor/openmct` vi
 
 ## Committing openmct changes
 
-When the user says to commit or push everything, the user means both the submodule and the parent git project.
+When the user says to commit or push, the user means both the submodule and the parent git project.
 
 The parent repo stores a pointer to a specific openmct commit, not the files themselves.
 
-1. Commit and push inside the submodule first:
+1. Only if the user want to commit **and push**: run `yarn tsc --noEmit`, `yarn test`, `yarn format:check` and ensure no errors.
+2. Commit and push inside the submodule first:
    ```
    cd vendor/openmct
    git add -A && git commit -m "description of change"
-   git push origin caduceus
+   git push origin caduceus # if user wants to push
    ```
-2. Then update the parent repo to point to the new commit:
+3. Then update the parent repo to point to the new commit:
    ```
    cd ../..
    git add vendor/openmct
    git commit -m "update openmct submodule"
+   git push                 # if user wants to push
    ```
-3. **Always push the submodule before pushing the parent repo**, otherwise CI will reference a commit that doesn't exist on the remote.
+4. **Always push the submodule before pushing the parent repo**, otherwise CI will reference a commit that doesn't exist on the remote.
 
 # Architecture
 
@@ -75,7 +77,6 @@ Then, in the layout, create an overlay plot with both keys.
 - **No `any`**: always use proper types
 - **No vague object types**: `Record<string, unknown>`, `object`, etc. are forbidden; define explicit types or derive.
 - **Single source of truth**: derive types from generated types or existing interfaces using `Pick`, `Omit` etc; reuse SDK types even if they have extra fields; use `ReturnType`, `Awaited`, `Parameters`, etc when types aren't exported
-- **Prefer `Nullish<T>`** from `utils/types` over `T | null | undefined`
 - **No barrel files**: import directly from concrete module files, not re-export `index.ts` files
 - **Document public APIs**: JSDoc on all public methods/constructors with `@param` / `@returns`; keep docs in sync when modifying
 - **Refactor call sites**: when changing a function signature, update all call sites instead of adding optional parameters

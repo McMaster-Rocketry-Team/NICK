@@ -2,23 +2,6 @@ import { registerSW } from 'virtual:pwa-register'
 import openmct from 'openmct'
 import snowThemeUrl from '../vendor/openmct/dist/snowTheme.css?url'
 import espressoThemeUrl from '../vendor/openmct/dist/espressoTheme.css?url'
-
-const themeLink = document.createElement('link')
-themeLink.rel = 'stylesheet'
-const darkMq = window.matchMedia('(prefers-color-scheme: dark)')
-themeLink.href = darkMq.matches ? espressoThemeUrl : snowThemeUrl
-document.head.appendChild(themeLink)
-darkMq.addEventListener('change', (e) => {
-  themeLink.href = e.matches ? espressoThemeUrl : snowThemeUrl
-})
-
-const updateSW = registerSW({
-  immediate: true,
-  onNeedRefresh() {
-    // New version available — reload immediately to activate it
-    updateSW(true)
-  },
-})
 import { AvionicsLayoutPlugin } from './layout/avionics'
 import {
   DataProviderPlugin,
@@ -29,6 +12,26 @@ import { DataSourceSwitcherPlugin } from './plugins/data-source-switcher'
 import { FakeDataGenerator } from './sources/fake-data-generator'
 import { getBackendType } from './db/get-backend'
 
+// service worker for PWA
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    // New version available — reload immediately to activate it
+    updateSW(true)
+  },
+})
+
+// dynamically load openmct theme
+const themeLink = document.createElement('link')
+themeLink.rel = 'stylesheet'
+const darkMq = window.matchMedia('(prefers-color-scheme: dark)')
+themeLink.href = darkMq.matches ? espressoThemeUrl : snowThemeUrl
+document.head.appendChild(themeLink)
+darkMq.addEventListener('change', (e) => {
+  themeLink.href = e.matches ? espressoThemeUrl : snowThemeUrl
+})
+
+// install openmct plugins
 openmct.install(openmct.plugins.LocalStorage())
 openmct.install(openmct.plugins.MyItems())
 openmct.install(openmct.plugins.UTCTimeSystem())
