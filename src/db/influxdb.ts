@@ -28,6 +28,45 @@ export function saveInfluxConfig(config: InfluxDBConfig): void {
   localStorage.setItem(INFLUXDB_BUCKET_KEY, config.bucket)
 }
 
+/**
+ * Verifies that the given InfluxDB credentials can reach the server.
+ * Uses POST to avoid being cached by the service worker.
+ * Throws with a human-readable message if the connection fails.
+ *
+ * @param url InfluxDB base URL
+ * @param token API token
+ * @param org Organization name
+ */
+export async function testInfluxConfig(
+  url: string,
+  token: string,
+  org: string
+): Promise<void> {
+  const resp = await fetch(
+    `${url}/api/v2/query?org=${encodeURIComponent(org)}`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Token ${token}`,
+        'Content-Type': 'application/vnd.flux',
+        Accept: 'application/csv',
+      },
+      body: 'buckets() |> limit(n: 1)',
+    }
+  )
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '')
+    let msg = `HTTP ${resp.status}`
+    try {
+      const json = JSON.parse(body) as { message?: string }
+      if (json.message) msg = json.message
+    } catch {
+      // ignore
+    }
+    throw new Error(msg)
+  }
+}
+
 // Split a single CSV line respecting quoted fields.
 function splitCSVLine(line: string): string[] {
   const cols: string[] = []

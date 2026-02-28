@@ -1,3 +1,7 @@
 /* Imported as a string via ?inline (see react-plugin.tsx) and injected into
    shadow DOM roots. This keeps Tailwind isolated from OpenMCT's global CSS. */
 @import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}

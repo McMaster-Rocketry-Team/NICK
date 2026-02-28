@@ -7,6 +7,7 @@ import {
 import {
   loadInfluxConfig,
   saveInfluxConfig,
+  testInfluxConfig,
   InfluxDBBackend,
 } from '../db/influxdb'
 import { getAllData, clearAllData } from '../db/duckdb'
@@ -19,30 +20,6 @@ const UPLOAD_BATCH_SIZE = 5000
 function formatTimestamp(ts: number | null): string {
   if (!ts) return 'Never'
   return new Date(ts).toLocaleString()
-}
-
-async function testInfluxConfig(
-  url: string,
-  token: string,
-  org: string
-): Promise<void> {
-  const resp = await fetch(
-    `${url}/api/v2/buckets?org=${encodeURIComponent(org)}&limit=1`,
-    {
-      headers: { Authorization: `Token ${token}` },
-    }
-  )
-  if (!resp.ok) {
-    const body = await resp.text().catch(() => '')
-    let msg = `HTTP ${resp.status}`
-    try {
-      const json = JSON.parse(body) as { message?: string }
-      if (json.message) msg = json.message
-    } catch {
-      // ignore
-    }
-    throw new Error(msg)
-  }
 }
 
 type View = 'main' | 'config'

@@ -19,6 +19,9 @@ export default defineConfig({
       allow: ['.', openmctDist],
     },
   },
+  build: {
+    chunkSizeWarningLimit: 100000,
+  },
   plugins: [
     tailwindcss(),
     react(),
