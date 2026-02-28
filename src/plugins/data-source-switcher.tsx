@@ -277,7 +277,7 @@ function DataSourceSwitcher() {
   }, [url, token, org, bucket])
 
   return (
-    <div className="h-full overflow-y-auto bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 text-[12px] font-sans p-3.5">
+    <div className="h-full overflow-y-auto text-gray-800 dark:text-gray-100 text-[12px] font-sans p-3.5">
       {view === 'main' ? (
         <div className="flex flex-col gap-3.5">
           {/* Active Backend */}
