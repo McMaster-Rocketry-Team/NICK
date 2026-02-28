@@ -1,6 +1,5 @@
 import { registerSW } from 'virtual:pwa-register'
 import openmct from 'openmct'
-import './main.css'
 import snowThemeUrl from '../vendor/openmct/dist/snowTheme.css?url'
 import espressoThemeUrl from '../vendor/openmct/dist/espressoTheme.css?url'
 
