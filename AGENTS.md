@@ -17,6 +17,8 @@ Note: `yarn install` automatically runs `npm install` inside `vendor/openmct` vi
 
 ## Committing openmct changes
 
+When the user says to commit or push everything, the user means both the submodule and the parent git project.
+
 The parent repo stores a pointer to a specific openmct commit, not the files themselves.
 
 1. Commit and push inside the submodule first:
