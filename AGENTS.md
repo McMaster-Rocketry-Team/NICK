@@ -2,15 +2,36 @@ This is a yarn classic + vite + vanilla ts project
 
 Assume yarn dev is already running on localhost 5173
 
-# OpenMCT
+# OpenMCT Submodule
 
-OpenMCT source lives in `vendor/openmct/` (git submodule). After modifying it, rebuild with:
+OpenMCT source lives in `vendor/openmct/` (git submodule). The full documentation is at `vendor/openmct/API.md`.
 
-```
-cd vendor/openmct && npm run build:prod
-```
+**Caduceus uses yarn classic, but openmct uses npm.** They are independent projects with separate dependency trees. Never use yarn inside `vendor/openmct/`, and never use npm at the caduceus root.
 
-The full documentation for openmct is located at vendor/openmct/API.md
+## After modifying openmct source
+
+1. Run `yarn install --force` — this rebuilds openmct (via the `preinstall` hook) and re-copies it into `node_modules/openmct`.
+2. The dev server will pick up the new dist on page reload.
+
+Note: `yarn install` automatically runs `npm install` inside `vendor/openmct` via the `preinstall` script, which triggers openmct's `prepare` script (`build:prod` + `tsc`). So a fresh `yarn install` always builds openmct from source.
+
+## Committing openmct changes
+
+The parent repo stores a pointer to a specific openmct commit, not the files themselves.
+
+1. Commit and push inside the submodule first:
+   ```
+   cd vendor/openmct
+   git add -A && git commit -m "description of change"
+   git push origin caduceus
+   ```
+2. Then update the parent repo to point to the new commit:
+   ```
+   cd ../..
+   git add vendor/openmct
+   git commit -m "update openmct submodule"
+   ```
+3. **Always push the submodule before pushing the parent repo**, otherwise CI will reference a commit that doesn't exist on the remote.
 
 # Architecture
 
