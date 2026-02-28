@@ -1,4 +1,4 @@
 [submodule "vendor/openmct"]
 	path = vendor/openmct
-	url = https://github.com/McMaster-Rocketry-Team/openmct
+	url = git@github.com:McMaster-Rocketry-Team/openmct.git
 	branch = caduceus
