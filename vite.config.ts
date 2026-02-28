@@ -1,6 +1,8 @@
-import { defineConfig } from 'vite'
 import path from 'path'
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import tailwindcss from '@tailwindcss/vite'
 
 const openmctDist = path.resolve(__dirname, 'vendor/openmct/dist')
 
@@ -18,6 +20,8 @@ export default defineConfig({
     },
   },
   plugins: [
+    tailwindcss(),
+    react(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'pwa-192x192.png', 'pwa-512x512.png'],

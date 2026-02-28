@@ -1,4 +1,7 @@
-This is a yarn classic + vite + vanilla ts project
+This is a yarn classic + vite + ts + react + tailwindcss v4 + openmct project
+
+Unlike a regular react project, the page root is controlled by openmct, and react is used to render plugins inside openmct.
+There is typically one react tree per displayed plugin.
 
 Assume yarn dev is already running on localhost 5173
 
