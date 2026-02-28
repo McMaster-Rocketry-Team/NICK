@@ -28,8 +28,14 @@ function makeOverlayPlot() {
     ],
     configuration: {
       series: [
-        { identifier: { namespace: NAMESPACE, key: VL_BATTERY_RECEIVED } },
-        { identifier: { namespace: NAMESPACE, key: VL_BATTERY_GPS } },
+        {
+          identifier: { namespace: NAMESPACE, key: VL_BATTERY_RECEIVED },
+          gapThreshold: 100,
+        },
+        {
+          identifier: { namespace: NAMESPACE, key: VL_BATTERY_GPS },
+          gapThreshold: 100,
+        },
       ],
       yAxis: {
         autoscale: false,

@@ -1,6 +1,16 @@
 import { registerSW } from 'virtual:pwa-register'
-import openmct from 'openmct'
-import '../node_modules/openmct/dist/snowTheme.css'
+import openmct from '@mcmaster-rocketry-team/openmct'
+import snowThemeUrl from '../node_modules/@mcmaster-rocketry-team/openmct/dist/snowTheme.css?url'
+import espressoThemeUrl from '../node_modules/@mcmaster-rocketry-team/openmct/dist/espressoTheme.css?url'
+
+const themeLink = document.createElement('link')
+themeLink.rel = 'stylesheet'
+const darkMq = window.matchMedia('(prefers-color-scheme: dark)')
+themeLink.href = darkMq.matches ? espressoThemeUrl : snowThemeUrl
+document.head.appendChild(themeLink)
+darkMq.addEventListener('change', (e) => {
+  themeLink.href = e.matches ? espressoThemeUrl : snowThemeUrl
+})
 
 const updateSW = registerSW({
   immediate: true,

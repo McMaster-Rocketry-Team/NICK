@@ -70,6 +70,9 @@
     - [Overview](#overview)
     - [Implementing Visibility-Based Rendering](#implementing-visibility-based-rendering)
     - [Example](#example-1)
+  - [Plot Plugin](#plot-plugin)
+    - [Line Plot Series Configuration](#line-plot-series-configuration)
+      - [Gap Detection](#gap-detection)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -191,7 +194,7 @@ In order to use Open MCT's provided types in your own application, create a
 Then, simply import and use `openmct` in your application:
 
 ```js
-import openmct from 'openmct'
+import openmct from '@mcmaster-rocketry-team/openmct'
 ```
 
 ### Limitations
@@ -1434,3 +1437,72 @@ const myViewProvider = {
 Note that `renderWhenVisible` defers rendering while the view is not visible and caters to the latest execution call. This provides responsiveness for dynamic content while ensuring performance optimizations.
 
 Ensure your view logic is prepared to handle potentially multiple deferrals if using this API, as only the last call to renderWhenVisible will be queued for execution upon the view becoming visible.
+
+## Plot Plugin
+
+The built-in plot plugin (`src/plugins/plot`) renders time-series telemetry as line plots. Each series displayed in a plot can be individually configured through the inspector panel or programmatically via the domain object's `configuration.series` array.
+
+### Line Plot Series Configuration
+
+Each entry in `configuration.series` is an object with the following properties:
+
+| Property       | Type    | Default           | Description                                                                                                                                                                                                              |
+| -------------- | ------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `yKey`         | string  | first range value | The telemetry value key to use for the y-axis.                                                                                                                                                                           |
+| `interpolate`  | string  | `'linear'`        | How to connect data points. One of `'none'` (points only), `'linear'` (straight lines), or `'stepAfter'` (step function). For telemetry with `format: 'enum'`, defaults to `'stepAfter'`.                                |
+| `markers`      | boolean | `true`            | Whether to render a marker at each data point.                                                                                                                                                                           |
+| `markerShape`  | string  | `'point'`         | Shape of markers. One of `'point'`, `'circle'`, `'diamond'`, or `'triangle'`.                                                                                                                                            |
+| `markerSize`   | number  | `2.0`             | Size of markers in pixels.                                                                                                                                                                                               |
+| `alarmMarkers` | boolean | `true`            | Whether to render alarm-state markers at data points that are in an alarm state.                                                                                                                                         |
+| `limitLines`   | boolean | `false`           | Whether to render horizontal lines at configured limit values.                                                                                                                                                           |
+| `gapThreshold` | number  | `0`               | Minimum x-axis gap (in the same units as the x-axis, typically milliseconds) that is treated as a data gap and rendered as a break in the line rather than an interpolated segment. Set to `0` to disable gap detection. |
+| `color`        | string  | auto-assigned     | The hex color string for the series line and markers, e.g. `'#ff0000'`.                                                                                                                                                  |
+| `yAxisId`      | number  | `1`               | The y-axis this series is bound to. `1` is the primary y-axis; additional axes are numbered from `2`.                                                                                                                    |
+
+#### Gap Detection
+
+By default, the plot connects all data points with a continuous line regardless of how large the time gap between consecutive samples is. This can be misleading when telemetry data has intentional gaps (e.g. a sensor that was offline, or data that was not recorded for a period of time).
+
+The `gapThreshold` property enables gap detection. When set to a value greater than `0`, any pair of consecutive data points whose x-axis distance exceeds the threshold will be rendered as a break in the line rather than a connected segment.
+
+**Configuring via the inspector UI:**
+
+1. Open a plot in edit mode.
+2. In the inspector panel, expand the series you want to configure.
+3. Set **Line Method** to `Linear interpolate` or `Step after` (gap detection has no effect when Line Method is `None`).
+4. Enter a value in the **Gap Threshold (ms)** field. For example, entering `5000` will break the line wherever consecutive data points are more than 5 seconds apart.
+5. Set the value back to `0` to disable gap detection.
+
+**Configuring programmatically:**
+
+```javascript
+// When mutating a plot domain object, set gapThreshold on the relevant series entry.
+openmct.objects.mutate(
+  plotDomainObject,
+  'configuration.series[0].gapThreshold',
+  5000
+)
+```
+
+Or when constructing a plot domain object from scratch:
+
+```javascript
+const plotObject = {
+  identifier: { namespace: 'example', key: 'my-plot' },
+  type: 'telemetry.plot.overlay',
+  name: 'My Plot',
+  configuration: {
+    series: [
+      {
+        identifier: { namespace: 'example', key: 'my-telemetry' },
+        interpolate: 'linear',
+        gapThreshold: 5000, // break the line for gaps > 5 seconds
+      },
+    ],
+  },
+}
+```
+
+**Choosing a threshold value:**
+
+The threshold is compared against the raw x-axis values stored in the plot buffer, which are offsets from the first data point (in the units of the active time system, typically milliseconds). A good starting value is 2–3× the expected nominal sample interval. For example, if your telemetry arrives every second, a threshold of `3000` (3 seconds) will break the line only when a sample is more than 3× late.

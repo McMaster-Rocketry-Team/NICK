@@ -22,7 +22,7 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "@duckdb/duckdb-wasm": "^1.33.1-dev18.0",
-    "openmct": "^4.3.0-rc1"
+    "@duckdb/duckdb-wasm": "^1.32.0",
+    "@mcmaster-rocketry-team/openmct": "^4.3.0-rc1"
   }
 }
