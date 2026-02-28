@@ -23,6 +23,6 @@
   },
   "dependencies": {
     "@duckdb/duckdb-wasm": "^1.32.0",
-    "@mcmaster-rocketry-team/openmct": "^4.3.0-rc1"
+    "openmct": "file:./vendor/openmct"
   }
 }

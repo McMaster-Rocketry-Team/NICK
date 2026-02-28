@@ -1,4 +1,4 @@
-declare module '@mcmaster-rocketry-team/openmct' {
+declare module 'openmct' {
   const openmct: any
   export default openmct
 }

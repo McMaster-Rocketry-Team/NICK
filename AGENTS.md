@@ -2,7 +2,15 @@ This is a yarn classic + vite + vanilla ts project
 
 Assume yarn dev is already running on localhost 5173
 
-The full documentation for openmct is located at @OPENMCT.md
+# OpenMCT
+
+OpenMCT source lives in `vendor/openmct/` (git submodule). After modifying it, rebuild with:
+
+```
+cd vendor/openmct && npm run build:prod
+```
+
+The full documentation for openmct is located at vendor/openmct/API.md
 
 # Architecture
 

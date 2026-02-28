@@ -1,7 +1,7 @@
 import { registerSW } from 'virtual:pwa-register'
-import openmct from '@mcmaster-rocketry-team/openmct'
-import snowThemeUrl from '../node_modules/@mcmaster-rocketry-team/openmct/dist/snowTheme.css?url'
-import espressoThemeUrl from '../node_modules/@mcmaster-rocketry-team/openmct/dist/espressoTheme.css?url'
+import openmct from 'openmct'
+import snowThemeUrl from '../vendor/openmct/dist/snowTheme.css?url'
+import espressoThemeUrl from '../vendor/openmct/dist/espressoTheme.css?url'
 
 const themeLink = document.createElement('link')
 themeLink.rel = 'stylesheet'

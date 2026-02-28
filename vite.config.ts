@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import path from 'path'
 import { VitePWA } from 'vite-plugin-pwa'
 
-const openmctDist = path.resolve(__dirname, 'node_modules/openmct/dist')
+const openmctDist = path.resolve(__dirname, 'vendor/openmct/dist')
 
 const base = process.env.BASE_PATH ?? '/'
 
