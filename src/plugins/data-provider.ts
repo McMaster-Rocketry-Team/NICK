@@ -8,12 +8,21 @@ export type Datum = {
   timestampMs: number
 }
 
+export type DataKey = {
+  key: string
+  /**
+   * Minimum x-axis gap (ms) treated as a data break in plots.
+   * 0 disables gap detection.
+   */
+  gapThreshold: number
+}
+
 export interface DataSource {
   /**
-   * Returns every key this source may emit.
-   * @returns array of datum keys
+   * Returns every key this source may emit, with per-key plot metadata.
+   * @returns array of data key descriptors
    */
-  allKeys(): string[]
+  allKeys(): DataKey[]
 
   /**
    * Start producing data. Calls `onData` for each new datum.
@@ -29,11 +38,19 @@ type OpenMCTDatum = {
   value: number
 }
 
-/** Telemetry value descriptors used by the object provider. */
-const TELEMETRY_VALUES = [
-  { key: 'value', name: 'Value', format: 'float', hints: { range: 1 } },
-  { key: 'utc', name: 'Timestamp', format: 'utc', hints: { domain: 1 } },
-]
+/** Build per-key telemetry value descriptors, embedding gapThreshold on the range value. */
+function telemetryValues(dataKey: DataKey) {
+  return [
+    {
+      key: 'value',
+      name: 'Value',
+      format: 'float',
+      hints: { range: 1 },
+      gapThreshold: dataKey.gapThreshold,
+    },
+    { key: 'utc', name: 'Timestamp', format: 'utc', hints: { domain: 1 } },
+  ]
+}
 
 function toOpenMCTDatum(d: {
   timestampMs: number
@@ -43,7 +60,7 @@ function toOpenMCTDatum(d: {
 }
 
 /** Keys eagerly registered via {@link registerDataSource}. */
-const registeredKeys = new Set<string>()
+const registeredKeys = new Map<string, DataKey>()
 
 /** Per-key subscriber sets for OpenMCT realtime subscriptions. */
 const keySubscribers = new Map<string, Set<(datum: OpenMCTDatum) => void>>()
@@ -55,8 +72,8 @@ const keySubscribers = new Map<string, Set<(datum: OpenMCTDatum) => void>>()
  * @param source  the data source to register
  */
 export function registerDataSource(source: DataSource): void {
-  for (const key of source.allKeys()) {
-    registeredKeys.add(key)
+  for (const dataKey of source.allKeys()) {
+    registeredKeys.set(dataKey.key, dataKey)
   }
 
   source.subscribe((datum: Datum) => {
@@ -81,11 +98,11 @@ export function registerDataSource(source: DataSource): void {
  * a live data subscription. Use this when the backend does not produce
  * local data (e.g. InfluxDB) but the layout still references these keys.
  *
- * @param keys  the datum keys to register
+ * @param keys  the data key descriptors to register
  */
-export function registerDataSourceKeys(keys: string[]): void {
-  for (const key of keys) {
-    registeredKeys.add(key)
+export function registerDataSourceKeys(keys: DataKey[]): void {
+  for (const dataKey of keys) {
+    registeredKeys.set(dataKey.key, dataKey)
   }
 }
 
@@ -99,13 +116,14 @@ export function DataProviderPlugin(openmct: any) {
 
   openmct.objects.addProvider(NAMESPACE, {
     get(identifier: { namespace: string; key: string }) {
-      if (!registeredKeys.has(identifier.key)) return Promise.resolve(undefined)
+      const dataKey = registeredKeys.get(identifier.key)
+      if (!dataKey) return Promise.resolve(undefined)
       return Promise.resolve({
         identifier,
         name: identifier.key,
         type: `${NAMESPACE}.telemetry`,
         location: `${NAMESPACE}:root`,
-        telemetry: { values: TELEMETRY_VALUES },
+        telemetry: { values: telemetryValues(dataKey) },
       })
     },
   })

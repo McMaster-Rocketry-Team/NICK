@@ -1,18 +1,24 @@
-import type { DataSource, Datum } from '../plugins/data-provider'
+import type { DataKey, DataSource, Datum } from '../plugins/data-provider'
 
-export const VL_BATTERY_GPS = 'vl_battery_v_gps'
-export const VL_BATTERY_RECEIVED = 'vl_battery_v_received'
+export const VL_BATTERY_GPS: DataKey = {
+  key: 'vl_battery_v_gps',
+  gapThreshold: 100,
+}
+export const VL_BATTERY_RECEIVED: DataKey = {
+  key: 'vl_battery_v_received',
+  gapThreshold: 100,
+}
 
 const TICK_INTERVAL_MS = 20
 const GPS_TOGGLE_INTERVAL_MS = 2000
 
 export class FakeDataGenerator implements DataSource {
-  /** @returns all keys this generator may emit */
-  static allKeys(): string[] {
+  /** @returns all key descriptors this generator may emit */
+  static allKeys(): DataKey[] {
     return [VL_BATTERY_GPS, VL_BATTERY_RECEIVED]
   }
 
-  allKeys(): string[] {
+  allKeys(): DataKey[] {
     return FakeDataGenerator.allKeys()
   }
 
@@ -31,7 +37,7 @@ export class FakeDataGenerator implements DataSource {
     setInterval(() => {
       const timestampMs = Date.now()
       const value = Math.sin((2 * Math.PI * timestampMs) / 10000)
-      const key = hasGpsFix ? VL_BATTERY_GPS : VL_BATTERY_RECEIVED
+      const key = hasGpsFix ? VL_BATTERY_GPS.key : VL_BATTERY_RECEIVED.key
       onData({ key, value, timestampMs })
     }, TICK_INTERVAL_MS)
   }

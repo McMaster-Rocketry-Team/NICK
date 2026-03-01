@@ -23,18 +23,16 @@ function makeOverlayPlot() {
     type: 'telemetry.plot.overlay',
     location: `${AVIONICS_NAMESPACE}:${LAYOUT_KEY}`,
     composition: [
-      { namespace: NAMESPACE, key: VL_BATTERY_GPS },
-      { namespace: NAMESPACE, key: VL_BATTERY_RECEIVED },
+      { namespace: NAMESPACE, key: VL_BATTERY_GPS.key },
+      { namespace: NAMESPACE, key: VL_BATTERY_RECEIVED.key },
     ],
     configuration: {
       series: [
         {
-          identifier: { namespace: NAMESPACE, key: VL_BATTERY_RECEIVED },
-          gapThreshold: 100,
+          identifier: { namespace: NAMESPACE, key: VL_BATTERY_RECEIVED.key },
         },
         {
-          identifier: { namespace: NAMESPACE, key: VL_BATTERY_GPS },
-          gapThreshold: 100,
+          identifier: { namespace: NAMESPACE, key: VL_BATTERY_GPS.key },
         },
       ],
       yAxis: {
