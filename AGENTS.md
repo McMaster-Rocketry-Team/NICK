@@ -3,7 +3,9 @@ This is a yarn classic + vite + ts + react 19 + tailwindcss v4 + openmct project
 Unlike a regular react project, the page root is controlled by openmct, and react is used to render plugins inside openmct.
 There is typically one react tree per displayed plugin.
 
-Assume yarn dev is already running on localhost 5173
+# Development
+
+Check if the dev server is running with `ps aux | grep "vite"`, if not, start it with `yarn dev`.
 
 # OpenMCT Submodule
 
@@ -14,7 +16,8 @@ OpenMCT source lives in `vendor/openmct/` (git submodule). The full documentatio
 ## After modifying openmct source
 
 1. Run `yarn install --force` — this rebuilds openmct (via the `preinstall` hook) and re-copies it into `node_modules/openmct`.
-2. The dev server will pick up the new dist on page reload.
+2. Clear vite dependency cache with `rm -rf node_modules/.vite/deps`
+3. Restart the dev server with `yarn dev`
 
 Note: `yarn install` automatically runs `npm install` inside `vendor/openmct` via the `preinstall` script, which triggers openmct's `prepare` script (`build:prod` + `tsc`). So a fresh `yarn install` always builds openmct from source.
 
