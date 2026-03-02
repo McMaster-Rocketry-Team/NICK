@@ -31,7 +31,7 @@ export default defineConfig({
       manifest: {
         name: 'NICK',
         short_name: 'NICK',
-        description: 'MacRocktry Ground Station Software',
+        description: 'Next-gen Instrumentation & Control Kit',
         theme_color: '#fcfcfc',
         background_color: '#fcfcfc',
         display: 'standalone',
