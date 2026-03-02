@@ -29,8 +29,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
-        name: 'Caduceus',
-        short_name: 'Caduceus',
+        name: 'NICK',
+        short_name: 'NICK',
         description: 'MacRocktry Ground Station Software',
         theme_color: '#fcfcfc',
         background_color: '#fcfcfc',

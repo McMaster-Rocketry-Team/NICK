@@ -14,7 +14,7 @@ import { getAllData, clearAllData } from '../db/duckdb'
 import { NAMESPACE } from './data-provider'
 import { mountReactInShadow } from './react-utils'
 
-const LAST_UPLOAD_KEY = 'caduceus-last-upload-ts'
+const LAST_UPLOAD_KEY = 'nick-last-upload-ts'
 const UPLOAD_BATCH_SIZE = 5000
 
 function formatTimestamp(ts: number | null): string {

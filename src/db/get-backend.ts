@@ -4,7 +4,7 @@ import { InfluxDBBackend } from './influxdb'
 
 export type BackendType = 'duckdb' | 'influxdb'
 
-export const BACKEND_STORAGE_KEY = 'caduceus-backend'
+export const BACKEND_STORAGE_KEY = 'nick-backend'
 
 export function getBackendType(): BackendType {
   const stored = localStorage.getItem(BACKEND_STORAGE_KEY)

@@ -31,7 +31,7 @@ export interface DataSource {
   subscribe(onData: (data: Datum) => void): void
 }
 
-export const NAMESPACE = 'caduceus'
+export const NAMESPACE = 'nick'
 
 type OpenMCTDatum = {
   utc: number
@@ -109,8 +109,8 @@ export function registerDataSourceKeys(keys: DataKey[]): void {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function DataProviderPlugin(openmct: any) {
   openmct.types.addType(`${NAMESPACE}.telemetry`, {
-    name: 'Caduceus Telemetry Point',
-    description: 'A telemetry measurement from the Caduceus system',
+    name: 'NICK Telemetry Point',
+    description: 'A telemetry measurement from the NICK',
     cssClass: 'icon-telemetry',
   })
 

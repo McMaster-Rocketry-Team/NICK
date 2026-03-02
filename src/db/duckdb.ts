@@ -47,7 +47,7 @@ async function initDuckDB(): Promise<duckdb.AsyncDuckDBConnection> {
   URL.revokeObjectURL(workerUrl)
 
   await db.open({
-    path: 'opfs://caduceus.db',
+    path: 'opfs://nick.db',
     accessMode: duckdb.DuckDBAccessMode.READ_WRITE,
   })
 
@@ -85,7 +85,7 @@ export async function clearAllData(): Promise<void> {
     initPromise = null
   }
   const root = await navigator.storage.getDirectory()
-  await root.removeEntry('caduceus.db', { recursive: true }).catch(() => {
+  await root.removeEntry('nick.db', { recursive: true }).catch(() => {
     // File may not exist if no data was ever written; ignore
   })
 }

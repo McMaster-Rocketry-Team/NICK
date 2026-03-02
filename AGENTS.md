@@ -11,7 +11,7 @@ Check if the dev server is running with `ps aux | grep "vite"`, if not, start it
 
 OpenMCT source lives in `vendor/openmct/` (git submodule). The full documentation is at `vendor/openmct/API.md`.
 
-**Caduceus uses yarn classic, but openmct uses npm.** They are independent projects with separate dependency trees. Never use yarn inside `vendor/openmct/`, and never use npm at the caduceus root.
+**NICK uses yarn classic, but openmct uses npm.** They are independent projects with separate dependency trees. Never use yarn inside `vendor/openmct/`, and never use npm at the nick root.
 
 ## After modifying openmct source
 
@@ -32,7 +32,7 @@ The parent repo stores a pointer to a specific openmct commit, not the files the
    ```
    cd vendor/openmct
    git add -A && git commit -m "description of change"
-   git push origin caduceus # if user wants to push
+   git push origin # if user wants to push
    ```
 3. Then update the parent repo to point to the new commit:
    ```
