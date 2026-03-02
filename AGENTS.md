@@ -100,6 +100,6 @@ Then, in the layout, create an overlay plot with both keys.
 - Aggressively factor out duplicate logic between new code and existing code
 - Any other simplification you see appropriate
 
-2. **Lint**: Run `yarn tsc --noEmit` and ensure no type errors.
+2. **Lint**: Run `yarn tsc --noEmit` and `yarn lint` and ensure no type or lint errors.
 3. **Test**: Run `yarn test` and ensure all tests pass
 4. **Format**: Run `yarn format` at repo root.
