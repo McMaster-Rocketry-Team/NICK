@@ -1,6 +1,6 @@
 # Next-gen Instrumentation & Control Kit (NICK)
 
-[nick.macrocketry.ca](nick.macrocketry.ca)
+[nick.macrocketry.ca](https://nick.macrocketry.ca)
 
 ## Getting Started
 
