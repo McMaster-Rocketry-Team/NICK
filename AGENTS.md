@@ -13,6 +13,8 @@ OpenMCT source lives in `vendor/openmct/` (git submodule). The full documentatio
 
 **NICK uses yarn classic, but openmct uses npm.** They are independent projects with separate dependency trees. Never use yarn inside `vendor/openmct/`, and never use npm at the nick root.
 
+**IMPORTANT**: If you encounter a type error on an OpenMCT API object, **investigate whether the OpenMCT type definition is wrong first**, and fix the type definition in `vendor/openmct/` rather than working around it in NICK code. The JSDoc comments in the OpenMCT source are used to generate TypeScript declarations.
+
 ## After modifying openmct source
 
 1. Run `yarn install --force` — this rebuilds openmct (via the `preinstall` hook) and re-copies it into `node_modules/openmct`.
@@ -73,6 +75,8 @@ Then, in the layout, create an overlay plot with both keys.
 2. In `src/main.ts`, call `openmct.install(MyPlugin)`.
 
 # TypeScript
+
+## General Guidelines
 
 - **Prefer readability** over performance: dumb code over clever solutions (e.g. for loop > reduce)
 - **offensive programming**: aggressively use types to convey contracts
