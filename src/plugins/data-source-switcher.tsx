@@ -13,6 +13,7 @@ import {
 import { getAllData, clearAllData } from '../db/duckdb'
 import { NAMESPACE } from './data-provider'
 import { mountReactInShadow } from './react-utils'
+import type { OpenMCT } from 'openmct'
 
 const LAST_UPLOAD_KEY = 'nick-last-upload-ts'
 const UPLOAD_BATCH_SIZE = 5000
@@ -407,8 +408,7 @@ function DataSourceSwitcher() {
   )
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function DataSourceSwitcherPlugin(openmct: any) {
+export function DataSourceSwitcherPlugin(openmct: OpenMCT) {
   openmct.types.addType(`${NAMESPACE}.data-source-switcher`, {
     name: 'Data Source Switcher',
     description: 'Configure and switch between DuckDB and InfluxDB backends',

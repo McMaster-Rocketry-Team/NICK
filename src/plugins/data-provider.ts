@@ -1,5 +1,6 @@
 import { getBackend, getBackendType } from '../db/get-backend'
 import type { QueryOptions } from '../db/backend'
+import type { OpenMCT } from 'openmct'
 
 export type Datum = {
   key: string
@@ -106,8 +107,7 @@ export function registerDataSourceKeys(keys: DataKey[]): void {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function DataProviderPlugin(openmct: any) {
+export function DataProviderPlugin(openmct: OpenMCT) {
   openmct.types.addType(`${NAMESPACE}.telemetry`, {
     name: 'NICK Telemetry Point',
     description: 'A telemetry measurement from the NICK',

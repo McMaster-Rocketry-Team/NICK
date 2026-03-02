@@ -3,6 +3,7 @@ import {
   VL_BATTERY_RECEIVED,
 } from '../sources/fake-data-generator'
 import { NAMESPACE } from '../plugins/data-provider'
+import type { OpenMCT } from 'openmct'
 
 export const AVIONICS_NAMESPACE = 'avionics'
 
@@ -101,8 +102,7 @@ function makeLayout() {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function AvionicsLayoutPlugin(openmct: any) {
+export function AvionicsLayoutPlugin(openmct: OpenMCT) {
   openmct.objects.addRoot(
     { namespace: AVIONICS_NAMESPACE, key: LAYOUT_KEY },
     openmct.priority.HIGH
