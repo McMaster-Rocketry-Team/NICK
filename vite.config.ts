@@ -54,9 +54,9 @@ export default defineConfig({
       },
       workbox: {
         // Cache all assets for offline use
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm}'],
+        globPatterns: ['**/*'],
         // Large files like wasm need a higher size limit
-        maximumFileSizeToCacheInBytes: 50 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 100 * 1024 * 1024,
         runtimeCaching: [
           {
             // Cache openmct and app assets
