@@ -17,7 +17,7 @@ import type {
   Datum,
   Enumeration,
 } from '../plugins/data-provider'
-import { MODES, RESET_DEVICES } from '../plugins/uplink-command'
+import { MODES, RESET_DEVICES } from '../plugins/uplink-command.ts'
 
 // Downlink packets arrive at roughly packet rate, far slower than the 20 ms
 // tick of the local fake generator, so use a wider plot gap threshold.
@@ -559,5 +559,67 @@ export class RocketTelemetryGenerator implements DataSource {
         })
       }
     }, TICK_MS)
+  }
+}
+
+
+
+/**
+ * Receives triples sent from the backend server for each {@link ROCKET_SIGNALS} entry,
+ * so the OpenMCT dashboard can be populated from either real data or the backend's mock data.
+ */
+export class GroundStationSource implements DataSource {
+  /** @returns all rocket telemetry key descriptors. */
+  static allKeys(): DataKey[] {
+    return ROCKET_SIGNALS
+  }
+
+  allKeys(): DataKey[] {
+    return ROCKET_SIGNALS
+  }
+  subscribe(onData: (data: Datum) => void): void {
+    this.connect(onData);
+  }
+  connect(onData: (data: Datum) => void): void {
+    const socket = new WebSocket("ws://localhost:3000/ws");
+
+    socket.addEventListener("open", (event: Event) => {
+      console.log("Connected to the WebSocket server.");
+    });
+
+    // Event: Listen for incoming messages
+    socket.addEventListener("message", (event: MessageEvent) => {
+      console.log("Message from server:", event.data);
+      
+      // if json switch, const data = JSON.parse(event.data);
+      try {
+        // Data should be in form (key, value, timestamp)
+        const triple = event.data.split(",");
+        console.log(triple)
+        console.log(triple[0].slice(1), Number(triple[1]), Number(triple[2].slice(0, -1)))
+        onData({
+          key: triple[0].slice(1), // remove leading bracket
+          value: Number(triple[1]),
+          timestampMs: Number(triple[2].slice(0, -1)), // remove trailing bracket and convert to number
+        });
+      } catch (err) {
+        // Handle plain text or other formats
+        console.log("Error receiving triple")
+        console.log(err)
+      }
+    });
+
+    // Event: Connection closed
+    socket.addEventListener("close", (event: CloseEvent) => {
+      console.log(`Disconnected. Code: ${event.code}, Reason: ${event.reason}`);
+      setTimeout(() => {
+        this.connect(onData);
+      }, 1000);
+    });
+
+    // Event: Handle errors
+    socket.addEventListener("error", (event: Event) => {
+      console.error("WebSocket error observed:", event);
+    });
   }
 }

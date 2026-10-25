@@ -15,7 +15,7 @@ import { DownlinkConsolePlugin } from './plugins/downlink-console'
 import { DownlinkConditionSetsPlugin } from './plugins/downlink-condition-sets'
 import { RocketTelemetryTreePlugin } from './plugins/rocket-telemetry-tree'
 import { FakeDataGenerator } from './sources/fake-data-generator'
-import { RocketTelemetryGenerator } from './sources/rocket-telemetry'
+import { GroundStationSource, RocketTelemetryGenerator } from './sources/rocket-telemetry'
 import { getBackendType } from './db/get-backend'
 
 // service worker for PWA
@@ -86,10 +86,12 @@ openmct.install(RocketTelemetryTreePlugin)
 // register data sources here
 if (getBackendType() === 'duckdb') {
   registerDataSource(new FakeDataGenerator())
-  registerDataSource(new RocketTelemetryGenerator())
+  // registerDataSource(new RocketTelemetryGenerator())
+  registerDataSource(new GroundStationSource());
 } else {
   registerDataSourceKeys(FakeDataGenerator.allKeys())
-  registerDataSourceKeys(RocketTelemetryGenerator.allKeys())
+  // registerDataSourceKeys(RocketTelemetryGenerator.allKeys())
+  registerDataSourceKeys(GroundStationSource.allKeys())
 }
 
 openmct.time.setTimeSystem('utc', {
