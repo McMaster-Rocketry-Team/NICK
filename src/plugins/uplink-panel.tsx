@@ -87,7 +87,8 @@ type Ack = { rssi: number; snr: number }
  * @param command the command to transmit
  * @returns the ground-station acknowledgement
  */
-function sendUplink(command: UplinkCommand): Promise<Ack> {
+function sendTestUplink(command: UplinkCommand): Promise<Ack> {
+  // TODO: make this have a real uplink, similar to uplink console
   // Stands in for the POST to the ground-station uplink endpoint.
   console.debug('[uplink] sending', command)
   return new Promise((resolve, reject) => {
@@ -182,7 +183,7 @@ function UplinkPanel() {
 
     setLastCommand(command)
     setFeedback({ status: 'sending', label: summary })
-    sendUplink(command)
+    sendTestUplink(command)
       .then((ack) => setFeedback({ status: 'success', label: summary, ack }))
       .catch((err: unknown) =>
         setFeedback({

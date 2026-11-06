@@ -26,8 +26,6 @@
  * are the real readback for these commands; commands with no downlink mirror
  * (Target Apogee, Reset) simply show no current value, as the CLI does.
  *
- * NOTE: the actual transmit is a simulated stub ({@link sendUplink}) since NICK
- * has no ground-station uplink backend yet (Layer B).
  */
 import { useState, useEffect, useCallback } from 'react'
 import { NAMESPACE } from './data-provider'
@@ -211,18 +209,58 @@ function powerStatusText(
 }
 
 // ---------------------------------------------------------------------------
-// Simulated uplink transport (mirrors uplink-panel.tsx)
+// Simulated and real uplink transport (mirrors uplink-panel.tsx)
 // ---------------------------------------------------------------------------
 
 type Ack = { rssi: number; snr: number }
 
+/**
+ * Sends the real uplink, same interface as sendTestUplink
+ */
+export async function sendUplink(command: UplinkCommand): Promise<Ack> {
+  console.debug('[uplink] sending', command, '—', summarize(command));
+
+  let response: Response;
+  try {
+    response = await fetch('http://localhost:3000/cmd', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(command),
+    });
+  } catch (networkError) {
+    throw new Error(
+      `Network error sending uplink: ${
+        networkError instanceof Error ? networkError.message : String(networkError)
+      }`
+    );
+  }
+
+  if (!response.ok) {
+    const errorBody = await response.text().catch(() => '');
+    throw new Error(
+      `No ACK received [HTTP ${response.status} ${response.statusText}]: ${
+        errorBody || 'Server rejected command'
+      }`
+    );
+  }
+
+  try {
+    const ack: Ack = await response.json();
+    return ack;
+  } catch (parseError) {
+    throw new Error('Failed to parse ACK payload from server');
+  }
+}
 /**
  * Stand-in for the ground-station uplink transmit. Fakes latency, an occasional
  * link failure, and an ACK RSSI/SNR. Layer B replaces this with real packet
  * serialization + transmit; keep the resolve({@link Ack}) / reject(Error)
  * contract.
  */
-function sendUplink(command: UplinkCommand): Promise<Ack> {
+function sendTestUplink(command: UplinkCommand): Promise<Ack> {
   console.debug('[uplink] sending', command, '—', summarize(command))
   return new Promise((resolve, reject) => {
     setTimeout(() => {
