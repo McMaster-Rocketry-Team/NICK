@@ -35,6 +35,7 @@ import {
   FLIGHT_STAGE_ENUM,
   POWER_OUTPUT_STATUS_ENUM,
   SEND_UPLINK,
+  TELEMETRY_HOST_URL,
 } from '../sources/rocket-telemetry'
 import type { TreeNode } from '../sources/rocket-telemetry'
 import {
@@ -222,7 +223,7 @@ export async function sendUplink(command: UplinkCommand): Promise<Ack> {
 
   let response: Response;
   try {
-    response = await fetch('http://localhost:3000/cmd', {
+    response = await fetch('http://' + TELEMETRY_HOST_URL + '/cmd', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

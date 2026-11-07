@@ -19,6 +19,9 @@ import type {
 } from '../plugins/data-provider'
 import { MODES, RESET_DEVICES } from '../plugins/uplink-command.ts'
 
+// Host URL of the live telemetry server
+export const TELEMETRY_HOST_URL = "localhost:3000"
+
 // Downlink packets arrive at roughly packet rate, far slower than the 20 ms
 // tick of the local fake generator, so use a wider plot gap threshold.
 const GAP_MS = 5000
@@ -39,10 +42,10 @@ export const FLIGHT_STAGE_ENUM: Enumeration[] = [
   { value: 1, string: 'SelfTest' },
   { value: 2, string: 'Armed' },
   { value: 3, string: 'PoweredAscent' },
-  { value: 4, string: 'Coasting' },
-  { value: 5, string: 'DrogueDeployed' },
-  { value: 6, string: 'MainDeployed' },
-  { value: 7, string: 'Landed' },
+  { value: 4, string: 'DrogueDeployed' },
+  { value: 5, string: 'MainDeployed' },
+  { value: 6, string: 'Landed' },
+  { value: 7, string: 'FailedMinApogee' },
 ]
 
 /** Received packet type (link-quality `packet_type`). */
@@ -324,6 +327,7 @@ const GROUND_STATION_DOWNLINK = folder('gsd', 'Ground Station Downlink', [
     sig(
       num('gsd_num_of_fix_satellites', 'Satellites (fix)', 'count', 0, 0, 31)
     ),
+    sig(flag('gsd_lat_lon_valid', 'Lat/Lon Valid')),
     sig(flag('gsd_gps_fixed', 'GPS Fixed')),
     sig(flag('gsd_unix_clock_ready', 'Unix Clock Ready')),
     sig(num('gsd_lat', 'Latitude', 'deg', 5, -90, 90)),
@@ -338,7 +342,14 @@ const GROUND_STATION_DOWNLINK = folder('gsd', 'Ground Station Downlink', [
     sig(num('gsd_air_speed', 'Air Speed', 'm/s', 1, 0, 400)),
     sig(num('gsd_max_air_speed', 'Max Air Speed', 'm/s', 1, 0, 400)),
     sig(num('gsd_tilt_deg', 'Tilt', 'deg', 1, -90, 90)),
+    sig(flag('gsd_airbrakes_tilt_valid', 'Tilt Valid')),
     sig(num('gsd_air_temperature', 'Air Temperature', '°C', 1, -10, 85)),
+    sig(flag('gsd_alt_and_vel_valid', 'Altitude and Air Speed Valid')),
+    sig(flag('gsd_airbrakes_enabled', 'Air Brakes Enabled')),
+    sig(flag('gsd_airbrakes_calibrated', 'Air Brakes Calibrated')),
+    sig(flag('gsd_mpc_predicted_apogee_valid', 'Predicted Apogee Valid')),
+    sig(num('gsd_mpc_predicted_apogee', 'Predicted Apogee', 'm', 1, -100, 7000)),
+    sig(num('gsd_target_apogee_agl', 'Target Apogee', 'm', 1, -100, 7000)),
   ]),
   // Vehicle Power & Pyro
   folder('gsd_power', 'Vehicle Power & Pyro', [
@@ -581,7 +592,7 @@ export class GroundStationSource implements DataSource {
     this.connect(onData);
   }
   connect(onData: (data: Datum) => void): void {
-    const socket = new WebSocket("ws://localhost:3000/ws");
+    const socket = new WebSocket("ws://" + TELEMETRY_HOST_URL + "/ws");
 
     socket.addEventListener("open", (event: Event) => {
       console.log("Connected to the WebSocket server.");
