@@ -77,21 +77,25 @@ export const POWER_OUTPUT_STATUS_ENUM: Enumeration[] = [
  * confirmed from the previous CLI; the remaining variants/order must be
  * reconciled with `firmware-common-new::can_bus::messages::node_status::NodeHealth`
  * (that crate is not vendored here).
+ * 21 Nov - Reconciled with NodeHealth
  */
 export const NODE_HEALTH_ENUM: Enumeration[] = [
   { value: 0, string: 'Healthy' },
-  { value: 1, string: 'Degraded' },
-  { value: 2, string: 'Unhealthy' },
+  { value: 1, string: 'Warning' },
+  { value: 2, string: 'Error' },
+  { value: 3, string: 'Critical' },
 ]
 
 /**
  * `NodeMode` (Self Test node status). PROVISIONAL — only `Operational` is
  * confirmed; reconcile with `firmware-common-new ... NodeMode`.
+ * 21 Nov - Reconciled with NodeMode
  */
 export const NODE_MODE_ENUM: Enumeration[] = [
   { value: 0, string: 'Operational' },
-  { value: 1, string: 'LowPower' },
-  { value: 2, string: 'SelfTest' },
+  { value: 1, string: 'Initialization' },
+  { value: 2, string: 'Maintenance' },
+  { value: 3, string: 'Offline' },
 ]
 
 // ---------------------------------------------------------------------------
