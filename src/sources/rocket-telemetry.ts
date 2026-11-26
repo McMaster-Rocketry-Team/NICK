@@ -604,14 +604,14 @@ export class GroundStationSource implements DataSource {
 
     // Event: Listen for incoming messages
     socket.addEventListener("message", (event: MessageEvent) => {
-      console.log("Message from server:", event.data);
+      // console.log("Message from server:", event.data);
       
       // if json switch, const data = JSON.parse(event.data);
       try {
         // Data should be in form (key, value, timestamp)
         const triple = event.data.split(",");
-        console.log(triple)
-        console.log(triple[0].slice(1), Number(triple[1]), Number(triple[2].slice(0, -1)))
+        // console.log(triple)
+        // console.log(triple[0].slice(1), Number(triple[1]), Number(triple[2].slice(0, -1)))
         onData({
           key: triple[0].slice(1), // remove leading bracket
           value: Number(triple[1]),

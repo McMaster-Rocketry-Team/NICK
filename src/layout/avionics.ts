@@ -5,11 +5,14 @@ import {
 import { NAMESPACE } from '../plugins/data-provider'
 import { UPLINK_PANEL_TYPE } from '../plugins/uplink-panel'
 import type { OpenMCT } from 'openmct'
+import { UPLINK_CONSOLE_NAMESPACE, UPLINK_CONSOLE_ROOT_KEY, UPLINK_CONSOLE_TYPE } from '../plugins/uplink-console'
 
 export const AVIONICS_NAMESPACE = 'avionics'
 
 const OVERLAY_PLOT_KEY = 'vl_battery_overlay'
+const ALT_VEL_OVERLAY_KEY = 'alt_vel_overlay'
 const LAYOUT_KEY = 'layout'
+const RSSI_DISPLAY_KEY = 'gsd_rssi_display'
 export const DATA_SOURCE_SWITCHER_KEY = 'data-source-switcher'
 export const UPLINK_PANEL_KEY = 'uplink-panel'
 
@@ -19,6 +22,75 @@ const CONTAINER_BOTTOM_ID = 'c0000000-0000-0000-0000-000000000002'
 const FRAME_PLOT_ID = 'f0000000-0000-0000-0000-000000000001'
 const FRAME_SWITCHER_ID = 'f0000000-0000-0000-0000-000000000002'
 const FRAME_UPLINK_ID = 'f0000000-0000-0000-0000-000000000003'
+const FRAME_RSSI_ID = 'f0000000-0000-0000-0000-000000000004'
+
+function makeAltVelOverlayPlot() {
+  return {
+    identifier: { namespace: AVIONICS_NAMESPACE, key: ALT_VEL_OVERLAY_KEY },
+    name: 'Altitude and Velocity',
+    type: 'telemetry.plot.overlay',
+    location: `${AVIONICS_NAMESPACE}:${LAYOUT_KEY}`,
+    composition: [
+      { namespace: NAMESPACE, key: 'gsd_altitude_agl' },
+      { namespace: NAMESPACE, key: 'gsd_air_speed' },
+    ],
+    configuration: {
+      series: [
+        {
+          identifier: { namespace: NAMESPACE, key: 'gsd_altitude_agl' },
+        },
+        {
+          identifier: { namespace: NAMESPACE, key: 'gsd_air_speed' },
+        },
+      ],
+      yAxis: {
+        autoscale: false,
+        range: { min: -1.5, max: 1.5 },
+      },
+      objectStyles: {},
+      legend: {
+        position: 'top',
+        expandByDefault: false,
+        hideLegendWhenSmall: false,
+        showTimestampWhenExpanded: true,
+        showValueWhenExpanded: true,
+        showMinimumWhenExpanded: true,
+        showMaximumWhenExpanded: true,
+        showUnitsWhenExpanded: true,
+      },
+    },
+  }
+}
+
+function makeRssiDisplayLayout() {
+  return {
+    identifier: { namespace: AVIONICS_NAMESPACE, key: RSSI_DISPLAY_KEY },
+    name: 'GSD RSSI',
+    type: 'layout',
+    location: `${AVIONICS_NAMESPACE}:${LAYOUT_KEY}`,
+    composition: [{ namespace: NAMESPACE, key: 'gsd_rssi' }],
+    configuration: {
+      items: [
+        {
+          id: 'rssi-alphanumeric-item',
+          type: 'telemetry-view',
+          identifier: { namespace: NAMESPACE, key: 'gsd_rssi' },
+          x: 1,
+          y: 1,
+          width: 12,
+          height: 4,
+          stroke: 'transparent',
+          fill: 'transparent',
+          fontSize: 'large',
+          font: 'default',
+          displayMode: 'all',
+          showFrame: false,
+        },
+      ],
+      layoutGrid: [10, 10],
+    },
+  }
+}
 
 function makeOverlayPlot() {
   return {
@@ -65,9 +137,11 @@ function makeLayout() {
     type: 'flexible-layout',
     location: 'ROOT',
     composition: [
-      { namespace: AVIONICS_NAMESPACE, key: OVERLAY_PLOT_KEY },
-      { namespace: AVIONICS_NAMESPACE, key: UPLINK_PANEL_KEY },
+      { namespace: AVIONICS_NAMESPACE, key: ALT_VEL_OVERLAY_KEY },
+      // { namespace: AVIONICS_NAMESPACE, key: UPLINK_PANEL_KEY },
+      { namespace: UPLINK_CONSOLE_NAMESPACE, key: UPLINK_CONSOLE_ROOT_KEY},
       { namespace: AVIONICS_NAMESPACE, key: DATA_SOURCE_SWITCHER_KEY },
+      { namespace: AVIONICS_NAMESPACE, key: RSSI_DISPLAY_KEY },
     ],
     configuration: {
       rowsLayout: true,
@@ -80,7 +154,15 @@ function makeLayout() {
               id: FRAME_PLOT_ID,
               domainObjectIdentifier: {
                 namespace: AVIONICS_NAMESPACE,
-                key: OVERLAY_PLOT_KEY,
+                key: ALT_VEL_OVERLAY_KEY,
+              },
+              noFrame: false,
+            },
+            {
+              id: FRAME_RSSI_ID,
+              domainObjectIdentifier: {
+                namespace: AVIONICS_NAMESPACE,
+                key: RSSI_DISPLAY_KEY,
               },
               noFrame: false,
             },
@@ -93,8 +175,8 @@ function makeLayout() {
             {
               id: FRAME_UPLINK_ID,
               domainObjectIdentifier: {
-                namespace: AVIONICS_NAMESPACE,
-                key: UPLINK_PANEL_KEY,
+                namespace: UPLINK_CONSOLE_NAMESPACE,
+                key: UPLINK_CONSOLE_ROOT_KEY,
               },
               noFrame: false,
             },
@@ -128,6 +210,14 @@ export function AvionicsLayoutPlugin(openmct: OpenMCT) {
 
       if (identifier.key === OVERLAY_PLOT_KEY) {
         return Promise.resolve(makeOverlayPlot())
+      }
+
+      if (identifier.key == ALT_VEL_OVERLAY_KEY) {
+        return Promise.resolve(makeAltVelOverlayPlot())
+      }
+
+      if (identifier.key === RSSI_DISPLAY_KEY) {
+        return Promise.resolve(makeRssiDisplayLayout())
       }
 
       if (identifier.key === DATA_SOURCE_SWITCHER_KEY) {

@@ -60,7 +60,7 @@ import type { OpenMCT } from 'openmct'
 
 export const UPLINK_CONSOLE_NAMESPACE = 'uplink-console'
 export const UPLINK_CONSOLE_TYPE = `${NAMESPACE}.uplink-console`
-const UPLINK_CONSOLE_ROOT_KEY = 'console'
+export const UPLINK_CONSOLE_ROOT_KEY = 'console'
 
 // ---------------------------------------------------------------------------
 // Signal lookup & formatting
